@@ -1,16 +1,43 @@
 from flask import Flask, render_template, request
 from extensions import db
-from models import BacktestResult
+from config import DevelopmentConfig
 import pandas as pd
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
-
-# Configure SQLite database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///final_project.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(DevelopmentConfig)
 db.init_app(app)
 
+# Configure SQLite database
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///final_project.db'
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# --- Logging Setup ---
+if not app.debug and not app.config['LOG_TO_STDOUT']:
+    # Ensure the logs folder exists
+    log_dir = os.path.dirname(app.config['LOG_FILE'])
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    # Configure the file handler with rotation
+    file_handler = RotatingFileHandler(app.config['LOG_FILE'], maxBytes=10240, backupCount=10)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    ))
+    file_handler.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
+    app.logger.addHandler(file_handler)
+
+if app.config['LOG_TO_STDOUT']:
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
+    app.logger.addHandler(stream_handler)
+
+app.logger.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
+app.logger.info('Final Project startup')
+
+# Import models after initializing the app
 from models import Index, HistoricalPrice, MacroData, Strategy, BacktestResult
 from utils.data_retrieval import get_yahoo_data, get_fred_data
 from utils.backtesting import simple_backtest, simple_backtest_with_macro, full_invested_strategy
@@ -18,6 +45,7 @@ from utils.visualizations import create_return_plot
 
 @app.route('/')
 def home():
+    app.logger.info("Home page accessed")
     return render_template('index.html')
 
 @app.route('/backtest', methods=['POST'])
