@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Asset Allocation Backtester</title>
+</head>
+<body>
+    <h1>Asset Allocation Backtester</h1>
+    <form action="/backtest" method="post">
+        <label for="symbol">Index Symbol (e.g., ^GSPC for S&P 500):</label>
+        <input type="text" id="symbol" name="symbol" required><br><br>
+        
+        <label for="start_date">Start Date (YYYY-MM-DD):</label>
+        <input type="text" id="start_date" name="start_date" required><br><br>
+        
+        <label for="end_date">End Date (YYYY-MM-DD):</label>
+        <input type="text" id="end_date" name="end_date" required><br><br>
+        
+        <!-- You can add more fields here for strategy selection -->
+        <input type="submit" value="Run Backtest">
+    </form>
+</body>
+</html>

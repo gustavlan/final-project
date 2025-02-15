@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Backtest Results</title>
+</head>
+<body>
+    <h1>Backtest Results</h1>
+    <p>Cumulative Return: {{ cumulative_return | round(4) }}</p>
+    <p>Alpha: {{ alpha | round(4) }}</p>
+    <div>
+        <!-- Embed the Plotly chart -->
+        {{ plot_html | safe }}
+    </div>
+    <br>
+    <a href="/">Run Another Backtest</a>
+</body>
+</html>
