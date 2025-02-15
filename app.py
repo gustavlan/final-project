@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request
 from extensions import db
+from models import BacktestResult
 import pandas as pd
 import os
 
@@ -44,6 +45,18 @@ def backtest():
     else:
         cumulative_return, alpha, cumulative_series = simple_backtest(prices_df, full_invested_strategy)
         plot_dates = prices_df['Date']
+
+    # Persist backtest results to the database, with dummy values (1)
+    result = BacktestResult(
+        strategy_id=1,
+        index_id=1,
+        start_date=pd.to_datetime(start_date),
+        end_date=pd.to_datetime(end_date),
+        returns=cumulative_return,
+        alpha=alpha
+    )
+    db.session.add(result)
+    db.session.commit()
 
     # Generate interactive Plotly chart
     plot_html = create_return_plot(plot_dates, cumulative_series)
