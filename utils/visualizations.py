@@ -8,7 +8,7 @@ def create_return_plot(dates, naive_series, strategy_series):
         line=dict(color='blue')
     ))
     fig.add_trace(go.Scatter(
-        x=dates, y=strategy_series, mode='lines', name='Selected Strategy Return',
+        x=dates, y=strategy_series, mode='lines', name='Market Timing Strategy Return',
         line=dict(color='red')
     ))
     fig.update_layout(

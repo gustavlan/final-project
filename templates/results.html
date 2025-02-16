@@ -1,18 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Backtest Results</title>
+  <meta charset="UTF-8">
+  <title>Backtest Results</title>
+  <!-- Bootstrap CSS for modern styling -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
+<body class="bg-light">
+  <div class="container mt-5">
     <h1>Backtest Results</h1>
-    <p>Cumulative Return: {{ cumulative_return | round(4) }}</p>
-    <p>Alpha: {{ alpha | round(4) }}</p>
-    <div>
-        <!-- Embed the Plotly chart -->
-        {{ plot_html | safe }}
+    <div class="row">
+      <!-- Naive (Buy & Hold) Strategy Metrics -->
+      <div class="col-md-6">
+        <h3>Naive Strategy (Buy & Hold)</h3>
+        <p><strong>Cumulative Return:</strong> {{ naive_return | round(4) }}</p>
+        <p><strong>Alpha:</strong> {{ naive_alpha | round(4) }}</p>
+      </div>
+      <!-- Market Timing Strategy Metrics -->
+      <div class="col-md-6">
+        <h3>Market Timing Strategy</h3>
+        <p><strong>Cumulative Return:</strong> {{ strategy_return | round(4) }}</p>
+        <p><strong>Alpha:</strong> {{ strategy_alpha | round(4) }}</p>
+      </div>
     </div>
-    <br>
-    <a href="/">Run Another Backtest</a>
+    <div class="mt-4">
+      <!-- Embed the interactive Plotly chart -->
+      {{ plot_html | safe }}
+    </div>
+    <a href="/" class="btn btn-secondary mt-3">Run Another Backtest</a>
+  </div>
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

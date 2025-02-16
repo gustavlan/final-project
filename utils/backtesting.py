@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 
 def simple_backtest(prices_df, allocation_strategy):
     """
@@ -145,3 +146,50 @@ def simple_backtest_with_macro(prices_df, macro_df, allocation_strategy):
 # Example allocation strategy: always fully invested.
 def full_invested_strategy(df):
     return 1
+
+import math
+
+def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
+    """
+    A more advanced market timing strategy that combines momentum, volatility, and liquidity.
+    
+    Parameters:
+        df (DataFrame): Must contain at least 'Close' and 'returns' columns.
+        etf_ticker (str): Optional ETF ticker to use for liquidity proxy.
+    
+    Returns:
+        allocation (float): Allocation weight between 0 and 1.
+    """
+    lookback = 20  # Lookback period in days for computing signals.
+    if len(df) < lookback + 1:
+        return 1  # Not enough data: default to fully invested.
+    
+    # ---- Momentum Signal ----
+    momentum = (df['Close'].iloc[-1] / df['Close'].iloc[-(lookback + 1)] - 1)
+    momentum_signal = 1 / (1 + math.exp(-50 * momentum))
+    
+    # ---- Volatility Signal ----
+    vol = df['returns'].iloc[-lookback:].std()
+    target_vol = 0.02  # Target daily volatility (e.g., 2%).
+    volatility_signal = target_vol / vol if vol > target_vol else 1
+    volatility_signal = min(volatility_signal, 1)
+    
+    # ---- Liquidity Signal ----
+    # If 'Volume' is available, use it; otherwise, if an ETF ticker is provided, you could fetch ETF volume.
+    if 'Volume' in df.columns and not df['Volume'].isnull().all():
+        recent_volume = df['Volume'].iloc[-1]
+        avg_volume = df['Volume'].iloc[-lookback:].mean()
+        liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+        liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
+        liquidity_signal = min(liquidity_signal, 1)
+    else:
+        # If volume data is not available for the index, we can either:
+        # a) Use a proxy ETF's volume (this would require additional data fetching), or
+        # b) Assume a neutral liquidity signal.
+        liquidity_signal = 1
+
+    # ---- Combine Signals ----
+    allocation = momentum_signal * volatility_signal * liquidity_signal
+    allocation = max(0, min(allocation, 1))
+    
+    return allocation
