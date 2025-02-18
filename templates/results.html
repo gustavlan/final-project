@@ -9,20 +9,31 @@
 <body class="bg-light">
   <div class="container mt-5">
     <h1>Backtest Results</h1>
-    <div class="row">
-      <!-- Naive (Buy & Hold) Strategy Metrics -->
-      <div class="col-md-6">
-        <h3>Naive Strategy (Buy & Hold)</h3>
-        <p><strong>Cumulative Return:</strong> {{ naive_return | round(4) }}</p>
-        <p><strong>Alpha:</strong> {{ naive_alpha | round(4) }}</p>
+    {% if strategy_method == "naive" %}
+      <div class="alert alert-info">
+        Naive Buy & Hold was selected. Both strategies are identical.
       </div>
-      <!-- Market Timing Strategy Metrics -->
-      <div class="col-md-6">
-        <h3>Market Timing Strategy</h3>
-        <p><strong>Cumulative Return:</strong> {{ strategy_return | round(4) }}</p>
-        <p><strong>Alpha:</strong> {{ strategy_alpha | round(4) }}</p>
+      <div class="row">
+        <div class="col-md-12">
+          <h3>Naive Buy & Hold Strategy</h3>
+          <p><strong>Cumulative Return:</strong> {{ naive_return | round(4) }}</p>
+          <p><strong>Alpha:</strong> {{ naive_alpha | round(4) }}</p>
+        </div>
       </div>
-    </div>
+    {% else %}
+      <div class="row">
+        <div class="col-md-6">
+          <h3>Naive Buy & Hold Strategy</h3>
+          <p><strong>Cumulative Return:</strong> {{ naive_return | round(4) }}</p>
+          <p><strong>Alpha:</strong> {{ naive_alpha | round(4) }}</p>
+        </div>
+        <div class="col-md-6">
+          <h3>{{ strategy_label }}</h3>
+          <p><strong>Cumulative Return:</strong> {{ strategy_return | round(4) }}</p>
+          <p><strong>Alpha:</strong> {{ strategy_alpha | round(4) }}</p>
+        </div>
+      </div>
+    {% endif %}
     <div class="mt-4">
       <!-- Embed the interactive Plotly chart -->
       {{ plot_html | safe }}

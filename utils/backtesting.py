@@ -1,14 +1,15 @@
 import pandas as pd
 import numpy as np
 import math
-import yfinance as yf  # Added for ETF liquidity fetching
+import yfinance as yf  # For ETF liquidity data fetching
 
-def simple_backtest(prices_df):
+def simple_backtest(prices_df, allocation_strategy):
     """
-    Naive buy & hold backtest (fully invested).
+    Naive buy & hold or dynamic backtest without macro data.
     
     Parameters:
         prices_df (DataFrame): Historical price data with a valid price column and Date column.
+        allocation_strategy (function): Function that returns an allocation weight given the DataFrame.
     
     Returns:
         cumulative_return (float): The cumulative return of the strategy.
@@ -39,8 +40,9 @@ def simple_backtest(prices_df):
     # Calculate daily returns and fill NaN for first row
     prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
     
-    # Naive strategy: allocation always 1 (fully invested)
-    prices_df['strategy_returns'] = prices_df['returns'] * 1
+    # Apply the allocation strategy (e.g., lambda df: 1 for naive)
+    allocation = allocation_strategy(prices_df)
+    prices_df['strategy_returns'] = prices_df['returns'] * allocation
     
     cumulative_series = (prices_df['strategy_returns'] + 1).cumprod()
     if cumulative_series.empty:
@@ -54,7 +56,7 @@ def simple_backtest(prices_df):
 
 def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
     """
-    Advanced market timing strategy using index data, with ETF liquidity proxy if needed.
+    Advanced market timing strategy using index data and ETF liquidity proxy.
     
     Parameters:
         df (DataFrame): Historical price data; must contain at least 'Close' and 'returns' columns.
@@ -78,7 +80,6 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
     volatility_signal = min(volatility_signal, 1)
     
     # ---- Liquidity Signal ----
-    # If index volume data is available, use it.
     if 'Volume' in df.columns and not df['Volume'].isnull().all():
         recent_volume = df['Volume'].iloc[-1]
         avg_volume = df['Volume'].iloc[-lookback:].mean()
@@ -86,12 +87,17 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
         liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
         liquidity_signal = min(liquidity_signal, 1)
     else:
-        # If not available and an ETF ticker is provided, fetch ETF volume data.
+        # If index volume data is missing and an ETF ticker is provided, fetch ETF data.
         if etf_ticker:
             start_date = df['Date'].min()
             end_date = df['Date'].max()
             etf_data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
             etf_data.reset_index(inplace=True)
+            # Flatten ETF columns if they are MultiIndex.
+            if isinstance(etf_data.columns, pd.MultiIndex):
+                def flatten_etf(col):
+                    return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+                etf_data.columns = [flatten_etf(col) for col in etf_data.columns]
             if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
                 recent_volume = etf_data['Volume'].iloc[-1]
                 avg_volume = etf_data['Volume'].iloc[-lookback:].mean()
@@ -110,7 +116,7 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
 
 def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     """
-    Advanced market timing strategy that incorporates macroeconomic data from FRED, with ETF liquidity proxy.
+    Advanced market timing strategy that incorporates macroeconomic data from FRED along with index signals and ETF liquidity.
     
     Parameters:
         df (DataFrame): Historical price data; must contain at least 'Close' and 'returns' columns.
@@ -155,6 +161,10 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
             end_date = df['Date'].max()
             etf_data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
             etf_data.reset_index(inplace=True)
+            if isinstance(etf_data.columns, pd.MultiIndex):
+                def flatten_etf(col):
+                    return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+                etf_data.columns = [flatten_etf(col) for col in etf_data.columns]
             if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
                 recent_volume = etf_data['Volume'].iloc[-1]
                 avg_volume = etf_data['Volume'].iloc[-lookback:].mean()
@@ -169,7 +179,6 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     allocation = momentum_signal * volatility_signal * liquidity_signal * macro_signal
     allocation = max(0, min(allocation, 1))
     return allocation
-
 
 def dynamic_macro_strategy(df, macro_df, etf_ticker=None):
     """

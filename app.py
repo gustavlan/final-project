@@ -5,6 +5,9 @@ import pandas as pd
 import os
 import logging
 from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+load_dotenv()  # Loads variables from .env into os.environ
+
 
 app = Flask(__name__)
 app.config.from_object(DevelopmentConfig)
@@ -47,7 +50,12 @@ ETF_MAPPING = {
 # Import models after initializing the app
 from models import Index, HistoricalPrice, MacroData, Strategy, BacktestResult
 from utils.data_retrieval import get_yahoo_data, get_fred_data
-from utils.backtesting import simple_backtest, simple_backtest_with_macro, full_invested_strategy, dynamic_market_timing_strategy_advanced
+from utils.backtesting import (
+    simple_backtest, 
+    dynamic_market_timing_strategy_advanced, 
+    dynamic_market_timing_strategy_macro, 
+    dynamic_macro_strategy
+)
 from utils.visualizations import create_return_plot
 
 @app.route('/')
@@ -60,23 +68,27 @@ def backtest():
     symbol = request.form.get('symbol')
     start_date = request.form.get('start_date')
     end_date = request.form.get('end_date')
-    # Read the strategy selection
+    # Read the strategy selection; valid options: 'naive', 'advanced', 'macro', 'macro_only'
     strategy_method = request.form.get('strategy_method', 'naive')
 
-    # Retrieve price data...
+    # Retrieve price data for the index
     prices_df = get_yahoo_data(symbol, start_date, end_date)
     prices_df.reset_index(inplace=True)
     prices_df['Date'] = pd.to_datetime(prices_df['Date'])
+    
+    # Flatten columns if they are MultiIndex
     def flatten_col(col):
         return col[1] if isinstance(col, tuple) and len(col) > 1 else col
     prices_df.columns = [flatten_col(col) for col in prices_df.columns]
     app.logger.info("Flattened Price DataFrame columns: " + str(prices_df.columns.tolist()))
     
+    # If columns appear as ['', '^FTSE', '^FTSE', '^FTSE', '^FTSE', '^FTSE'], rename manually:
     cols = prices_df.columns.tolist()
     if len(cols) == 6 and cols[0] == '' and all(c == symbol for c in cols[1:]):
         prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close']
         app.logger.info("Renamed columns to: " + str(prices_df.columns.tolist()))
     
+    # Determine a valid price column
     if 'Close' in prices_df.columns:
         price_col = 'Close'
     elif 'Adj Close' in prices_df.columns:
@@ -88,38 +100,57 @@ def backtest():
     else:
         raise ValueError("No valid price column found. Available columns: " + str(prices_df.columns.tolist()))
     
-    # Naive strategy (Buy & Hold)
+    # Compute naive (Buy & Hold) cumulative returns:
     naive_returns = prices_df[price_col].pct_change().fillna(0)
     naive_series = (naive_returns + 1).cumprod()
     naive_return = float(naive_series.iloc[-1] - 1)
     naive_alpha = float(naive_return - naive_returns.mean())
     
-    # Determine ETF ticker if needed
+    # Determine ETF ticker for liquidity proxy (if available)
     etf_ticker = ETF_MAPPING.get(symbol, None)
     
-    # Choose the strategy based on user selection
+    # Choose strategy based on user selection:
     if strategy_method == 'naive':
-        # For naive, the strategy is just buy & hold (identical to the above)
+        # Use naive buy & hold (fully invested)
         strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
-    elif strategy_method == 'full_invested':
-        # Full invested constant strategy; effectively, it always returns 1
-        strategy_return, strategy_alpha, strategy_series = simple_backtest(prices_df, full_invested_strategy)
-        strategy_return = float(strategy_return)
-        strategy_alpha = float(strategy_alpha)
     elif strategy_method == 'advanced':
-        # Advanced market timing strategy using dynamic_market_timing_strategy_advanced
-        # (Optionally, macro data could be used; for now, we'll assume simple mode)
+        # Advanced market timing strategy using index data signals (plus ETF liquidity)
         strategy_return, strategy_alpha, strategy_series = simple_backtest(
             prices_df,
             lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
         )
         strategy_return = float(strategy_return)
         strategy_alpha = float(strategy_alpha)
+    elif strategy_method == 'macro':
+        # Advanced market timing strategy incorporating macro data along with index signals
+        fred_api_key = os.getenv("FRED_API_KEY")
+        if not fred_api_key:
+            return "FRED API key not set", 500
+        default_series_id = "DGS3MO"  # Example FRED series (e.g., 3-Month Treasury Rate)
+        macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
+        strategy_return, strategy_alpha, strategy_series = simple_backtest(
+            prices_df,
+            lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
+        )
+        strategy_return = float(strategy_return)
+        strategy_alpha = float(strategy_alpha)
+    elif strategy_method == 'macro_only':
+        # Strategy using only macro signals as a signal
+        fred_api_key = os.getenv("FRED_API_KEY")
+        if not fred_api_key:
+            return "FRED API key not set", 500
+        default_series_id = "DGS3MO"
+        macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
+        allocation = dynamic_macro_strategy(prices_df, macro_df, etf_ticker)
+        prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
+        strategy_series = (prices_df['returns'] * allocation + 1).cumprod()
+        strategy_return = float(strategy_series.iloc[-1] - 1)
+        strategy_alpha = float(strategy_return - prices_df['returns'].mean())
     else:
         # Default to naive if unrecognized
         strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
 
-    # Persist results and generate chart (as before)...
+    # Persist backtest results to the database (using dummy strategy and index IDs)
     result = BacktestResult(
         strategy_id=1,
         index_id=1,
@@ -130,19 +161,31 @@ def backtest():
     )
     db.session.add(result)
     db.session.commit()
-
+    
+    # Generate interactive Plotly chart with both naive and strategy series
     plot_dates = prices_df['Date']
     plot_html = create_return_plot(plot_dates, naive_series, strategy_series)
-
+    
+    # Set labels based on the selected strategy
+    if strategy_method == "advanced":
+        strategy_label = "Advanced Market Timing Strategy"
+    elif strategy_method == "macro":
+        strategy_label = "Macro Market Timing Strategy"
+    elif strategy_method == "macro_only":
+        strategy_label = "Macro-Only Strategy"
+    else:
+        strategy_label = "Naive Buy & Hold Strategy"
+    
     return render_template(
         'results.html',
+        strategy_method=strategy_method,
+        strategy_label=strategy_label,
         naive_return=naive_return,
         naive_alpha=naive_alpha,
         strategy_return=strategy_return,
         strategy_alpha=strategy_alpha,
         plot_html=plot_html
     )
-
 
 if __name__ == '__main__':
     app.run(debug=True)
