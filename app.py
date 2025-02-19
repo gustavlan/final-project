@@ -5,9 +5,6 @@ import pandas as pd
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
-load_dotenv()  # Loads variables from .env into os.environ
-
 
 app = Flask(__name__)
 app.config.from_object(DevelopmentConfig)
@@ -35,25 +32,25 @@ app.logger.info('Final Project startup')
 
 # Define a mapping from index tickers to ETF tickers.
 ETF_MAPPING = {
-    '^GSPC': 'SPY',       
-    '^DJI':  'DIA',       
-    '^IXIC': 'QQQ',       
-    '^FTSE': 'ISF',       
-    '^N225': 'EWJ',       
-    '^HSI':  '2800.HK',   
-    '^GDAXI': 'DAXY',     
-    '^FCHI': 'EWU',       
-    '^STOXX50E': 'FEZ',   
-    '^BSESN': 'INDA'      
+    '^GSPC': 'SPY',
+    '^DJI':  'DIA',
+    '^IXIC': 'QQQ',
+    '^FTSE': 'ISF',
+    '^N225': 'EWJ',
+    '^HSI':  '2800.HK',
+    '^GDAXI': 'DAXY',
+    '^FCHI': 'EWU',
+    '^STOXX50E': 'FEZ',
+    '^BSESN': 'INDA'
 }
 
 # Import models after initializing the app
 from models import Index, HistoricalPrice, MacroData, Strategy, BacktestResult
 from utils.data_retrieval import get_yahoo_data, get_fred_data
 from utils.backtesting import (
-    simple_backtest, 
-    dynamic_market_timing_strategy_advanced, 
-    dynamic_market_timing_strategy_macro, 
+    simple_backtest,
+    dynamic_market_timing_strategy_advanced,
+    dynamic_market_timing_strategy_macro,
     dynamic_macro_strategy
 )
 from utils.visualizations import create_return_plot
@@ -82,10 +79,10 @@ def backtest():
     prices_df.columns = [flatten_col(col) for col in prices_df.columns]
     app.logger.info("Flattened Price DataFrame columns: " + str(prices_df.columns.tolist()))
     
-    # If columns appear as ['', '^FTSE', '^FTSE', '^FTSE', '^FTSE', '^FTSE'], rename manually:
+    # If columns appear as ['', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E'], rename manually:
     cols = prices_df.columns.tolist()
-    if len(cols) == 6 and cols[0] == '' and all(c == symbol for c in cols[1:]):
-        prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close']
+    if len(cols) == 7 and cols[0] == '' and all(c == symbol for c in cols[1:]):
+        prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
         app.logger.info("Renamed columns to: " + str(prices_df.columns.tolist()))
     
     # Determine a valid price column
@@ -103,6 +100,9 @@ def backtest():
     # Compute naive (Buy & Hold) cumulative returns:
     naive_returns = prices_df[price_col].pct_change().fillna(0)
     naive_series = (naive_returns + 1).cumprod()
+    # Check if we have data; if not, raise error.
+    if naive_series.empty:
+        raise ValueError("No price data available for symbol " + symbol + " in the requested date range " + start_date + " to " + end_date)
     naive_return = float(naive_series.iloc[-1] - 1)
     naive_alpha = float(naive_return - naive_returns.mean())
     
@@ -135,7 +135,7 @@ def backtest():
         strategy_return = float(strategy_return)
         strategy_alpha = float(strategy_alpha)
     elif strategy_method == 'macro_only':
-        # Strategy using only macro signals as a signal
+        # Strategy using only macro signals as a signal (allocations from -1 to 1)
         fred_api_key = os.getenv("FRED_API_KEY")
         if not fred_api_key:
             return "FRED API key not set", 500
