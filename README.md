@@ -38,40 +38,42 @@ This project is a web application for backtesting asset allocation strategies us
   Simply holding the asset for the entire period.
 - **Calculations:**  
   - **Daily Return:**  
-    \[
-    r_t = \frac{P_t}{P_{t-1}} - 1
-    \]
+    ```
+    r_t = (P_t / P_{t-1}) - 1
+    ```
   - **Cumulative Return:**  
-    \[
-    CR = \prod_{t=1}^{T}(1 + r_t) - 1
-    \]
+    ```
+    CR = (Product of (1 + r_t) for t = 1 to T) - 1
+    ```
+  - **Alpha (simplified):**  
+    The difference between the cumulative return and the average daily return.
 
 ### Advanced Market Timing Strategy
 This strategy adjusts exposure daily based on three signals:
   
 1. **Momentum Signal**  
    - **Calculation:**  
-     \[
-     \text{Momentum} = \frac{P_t}{P_{t-n}} - 1
-     \]
+     ```
+     Momentum = (P_t / P_{t-n}) - 1
+     ```
    - **Transformation:**  
-     A logistic transformation is applied:  
-     \[
-     S_m = \frac{1}{1 + e^{-50 \times \text{Momentum}}}
-     \]
+     A logistic transformation is applied to convert momentum into a weight between 0 and 1:
+     ```
+     S_m = 1 / (1 + exp(-50 * Momentum))
+     ```
    - **Purpose:**  
-     Captures recent price trends and transforms them into a weight between 0 and 1.
+     Captures recent price trends and translates them into an allocation weight.
   
 2. **Volatility Signal**  
    - **Calculation:**  
-     Compute the standard deviation (\(\sigma\)) of daily returns over a lookback period.
+     Compute the standard deviation (σ) of daily returns over a lookback period.
    - **Scaling:**  
-     \[
-     S_v = \min\left(\frac{T}{\sigma}, 1\right)
-     \]
-     where \(T\) is a target daily volatility (e.g., 2%).
+     ```
+     S_v = min(Target_Volatility / σ, 1)
+     ```
+     (For example, if the target daily volatility is 2%, then Target_Volatility = 0.02)
    - **Purpose:**  
-     Adjusts the allocation to control for periods of high volatility.
+     Adjusts the allocation to manage periods of high volatility.
 
 3. **Liquidity Signal**  
    - **Calculation:**  
@@ -82,71 +84,74 @@ This strategy adjusts exposure daily based on three signals:
      Ensures that the asset is liquid enough for trading.
 
 - **Final Allocation:**  
-  The three signals are multiplied together and clamped between 0 and 1:
-  \[
-  A = \text{clamp}(S_m \times S_v \times S_l, 0, 1)
-  \]
+  Multiply the three signals and clamp the result between 0 and 1:
+  ```
+  Allocation = clamp(S_m * S_v * S_l, 0, 1)
+  ```
 
 ### Macro Market Timing Strategy
 This approach builds on the advanced strategy by incorporating macroeconomic data:
 
-1. **Momentum Signal (Modified):**  
-   \[
-   S_m = \tanh(10 \times \text{Momentum})
-   \]
+1. **Modified Momentum Signal:**  
+   ```
+   S_m = tanh(10 * Momentum)
+   ```
 2. **Macro Signal:**  
    - **Calculation:**  
-     Calculate the deviation of the current macro indicator from its rolling average:
-     \[
-     z = \frac{\text{Rolling Average} - \text{Current Macro}}{\sigma_{\text{macro}}}
-     \]
+     First, compute the z-score of the current macro indicator:
+     ```
+     z = (Rolling_Average - Current_Macro) / Standard_Deviation_of_Macro
+     ```
    - **Transformation:**  
-     \[
-     S_{\text{macro}} = \tanh(z)
-     \]
+     ```
+     S_macro = tanh(z)
+     ```
 3. **Combined Signal:**  
    Average the momentum and macro signals:
-   \[
-   S_c = 0.5 \times S_m + 0.5 \times S_{\text{macro}}
-   \]
+   ```
+   S_c = 0.5 * S_m + 0.5 * S_macro
+   ```
 4. **Adjustments:**  
-   The combined signal is then scaled using the same volatility and liquidity signals as above.
+   Scale the combined signal using the same volatility (S_v) and liquidity (S_l) signals.
 5. **Final Allocation:**  
-   \[
-   A = \text{clamp}(S_c \times S_v \times S_l, -1, 1)
-   \]
-   Note: Here the allocation can be negative, indicating a potential short position.
+   Here, the allocation can be negative (indicating a potential short position):
+   ```
+   Allocation = clamp(S_c * S_v * S_l, -1, 1)
+   ```
 
 ### Macro-Only Strategy
 - **Concept:**  
   Uses only macroeconomic indicators to determine allocation.
 - **Calculation:**  
   Similar to the macro signal above:
-  \[
-  A = \text{clamp}(\tanh(z), -1, 1)
-  \]
-  where \(z\) is defined as in the macro signal calculation.
+  ```
+  Allocation = clamp(tanh(z), -1, 1)
+  ```
+  where `z` is computed as:
+  ```
+  z = (Rolling_Average - Current_Macro) / Standard_Deviation_of_Macro
+  ```
 
 ### Risk-Adjusted Performance Metrics
 In addition to return calculations, the backtester computes several risk-adjusted metrics:
 
 - **Sharpe Ratio:**  
-  \[
-  \text{Sharpe Ratio} = \frac{R_p - R_f}{\sigma_p}
-  \]
-  where \(R_p\) is the portfolio return, \(R_f\) is the risk-free rate, and \(\sigma_p\) is the standard deviation of portfolio returns.
+  ```
+  Sharpe Ratio = (R_p - R_f) / σ_p
+  ```
+  where R_p is the portfolio return, R_f is the risk-free rate, and σ_p is the standard deviation of portfolio returns.
 
 - **Treynor Ratio:**  
-  \[
-  \text{Treynor Ratio} = \frac{R_p - R_f}{\beta}
-  \]
-  This measures the excess return per unit of systematic risk (beta).
+  ```
+  Treynor Ratio = (R_p - R_f) / Beta
+  ```
+  This measures the excess return per unit of systematic risk (Beta).
 
 - **Jensen's Alpha:**  
-  \[
-  \alpha = R_p - \left[ R_f + \beta (R_m - R_f) \right]
-  \]
-  Here, \(R_m\) is the market return. A positive alpha indicates performance above what is predicted by the Capital Asset Pricing Model (CAPM).
+  ```
+  Jensen's Alpha = R_p - [R_f + Beta * (R_m - R_f)]
+  ```
+  where R_m is the market return. A positive value indicates performance above what is predicted by CAPM.
 
 ## Installation
 
@@ -206,7 +211,7 @@ In addition to return calculations, the backtester computes several risk-adjuste
      - Macro Market Timing
      - Macro-Only Strategy
    - Click **Run Backtest**.
-   - View the output, which includes cumulative returns and risk-adjusted metrics like Jensen's Alpha and the Treynor Ratio, along with an interactive Plotly chart comparing the strategies.
+   - View the output, which includes cumulative returns and risk-adjusted metrics (such as Jensen's Alpha and the Treynor Ratio), along with an interactive Plotly chart comparing the strategies.
 
 ## Running Tests
 
@@ -256,4 +261,8 @@ cs50_final_project/
 
 ---
 
-This updated README now documents the new strategies and provides the underlying mathematical rationale for how each method computes its signals and allocations, as well as the risk-adjusted performance metrics used in your backtests. Feel free to adjust the descriptions and formulas to best match your implementation and desired level of detail.
+### Notes:
+- **Rendering Formulas on GitHub:**  
+  GitHub’s markdown viewer does not natively support LaTeX rendering. This version uses plain text and code formatting to display the formulas clearly.
+- **Further Enhancements:**  
+  If you prefer rendered math formulas, you might consider using GitHub Pages with MathJax or converting the equations into images.
