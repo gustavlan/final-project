@@ -1,4 +1,7 @@
 # CS50 Final Project: Asset Allocation Backtester
+#### Video Demo: https://youtu.be/tDYSbbfB59k
+
+#### Description:
 
 This project is a web application for backtesting asset allocation strategies using historical index data and macroeconomic indicators. It allows users to compare a naive buy & hold strategy with more advanced market timing strategies that incorporate signals from momentum, volatility, liquidity, and macroeconomic data.
 
