@@ -81,9 +81,11 @@ def backtest():
     
     # If columns appear as ['', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E'], rename manually:
     cols = prices_df.columns.tolist()
-    if len(cols) == 7 and cols[0] == '' and all(c == symbol for c in cols[1:]):
-        prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
-        app.logger.info("Renamed columns to: " + str(prices_df.columns.tolist()))
+    if cols[0] == '' and all(c == symbol for c in cols[1:]): 
+        if len(cols) == 7: 
+            prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'] 
+        elif len(cols) == 6: 
+            prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close']
     
     # Determine a valid price column
     if 'Close' in prices_df.columns:
