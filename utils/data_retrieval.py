@@ -24,7 +24,18 @@ def get_risk_free_rate(api_key, start_date, end_date):
     # Convert the annual percentage rate to a daily decimal rate.
     # (Divide by 100 to convert percent to decimal and by 252 for daily rate)
     df['daily_rate'] = df['value'] / 100 / 252
+
     # Rename the date column for consistency
     df.rename(columns={'date': 'Date'}, inplace=True)
+    df['Date'] = pd.to_datetime(df['Date'])
+    df.set_index('Date', inplace=True)
     
+    # Create a complete date range from start_date to end_date.
+    full_range = pd.date_range(start=start_date, end=end_date, freq='D')
+    df = df.reindex(full_range)
+    
+    # Forward fill missing daily_rate values.
+    df['daily_rate'] = df['daily_rate'].fillna(method='ffill')
+    df = df.reset_index().rename(columns={'index': 'Date'})
+
     return df[['Date', 'daily_rate']]
