@@ -51,7 +51,7 @@ def simple_backtest(prices_df, allocation_strategy):
     cumulative_return = cumulative_series.iloc[-1] - 1
     alpha = cumulative_return - prices_df['returns'].mean()
     
-    return cumulative_return, alpha, cumulative_series
+    return cumulative_return, alpha, cumulative_series, prices_df['strategy_returns']
 
 
 def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
