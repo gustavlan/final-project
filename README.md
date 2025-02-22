@@ -1,8 +1,3 @@
-Below is a proposed updated version of your README.md that includes a new “Methodology” section. This section outlines the math behind each strategy and explains how risk‐adjusted performance metrics (such as Treynor Ratio and Jensen’s Alpha) are computed. You can further customize it as needed.
-
----
-
-```markdown
 # CS50 Final Project: Asset Allocation Backtester
 
 This project is a web application for backtesting asset allocation strategies using historical index data and macroeconomic indicators. It allows users to compare a naive buy & hold strategy with more advanced market timing strategies that incorporate signals from momentum, volatility, liquidity, and macroeconomic data.
