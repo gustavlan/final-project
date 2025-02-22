@@ -1,4 +1,4 @@
-#!/home/gusta/hello/final_project/venv/bin/python3
+#!/home/gusta/projects/cs50_final_project/venv/bin/python3
 
 import datetime
 import os
