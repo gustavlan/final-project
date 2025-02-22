@@ -257,12 +257,3 @@ cs50_final_project/
 ## License
 
 [MIT License](LICENSE)
-```
-
----
-
-### Notes:
-- **Rendering Formulas on GitHub:**  
-  GitHub’s markdown viewer does not natively support LaTeX rendering. This version uses plain text and code formatting to display the formulas clearly.
-- **Further Enhancements:**  
-  If you prefer rendered math formulas, you might consider using GitHub Pages with MathJax or converting the equations into images.
