@@ -6,6 +6,7 @@ import numpy as np
 import os
 import logging
 from logging.handlers import RotatingFileHandler
+from utils.data_retrieval import get_risk_free_rate
 
 app = Flask(__name__)
 app.config.from_object(DevelopmentConfig)
@@ -223,7 +224,7 @@ def backtest():
         naive_alpha=naive_alpha,
         strategy_return=strategy_return,
         strategy_alpha=strategy_alpha,
-        plot_html=plot_html
+        plot_html=plot_html,
         naive_sharpe=naive_sharpe,
         naive_sortino=naive_sortino,
         naive_beta=1,
