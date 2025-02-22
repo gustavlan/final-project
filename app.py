@@ -2,6 +2,7 @@ from flask import Flask, render_template, request
 from extensions import db
 from config import DevelopmentConfig
 import pandas as pd
+import numpy as np
 import os
 import logging
 from logging.handlers import RotatingFileHandler
@@ -115,11 +116,11 @@ def backtest():
     if strategy_method == 'naive':
         # Use naive buy & hold (fully invested)
         strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
+        strategy_daily_returns = naive_returns # daily returns
     elif strategy_method == 'advanced':
         # Advanced market timing strategy using index data signals (plus ETF liquidity)
-        strategy_return, strategy_alpha, strategy_series = simple_backtest(
-            prices_df,
-            lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
+        strategy_return, strategy_alpha, strategy_series, strategy_daily_returns = simple_backtest(
+            prices_df, lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
         )
         strategy_return = float(strategy_return)
         strategy_alpha = float(strategy_alpha)
@@ -128,9 +129,9 @@ def backtest():
         fred_api_key = os.getenv("FRED_API_KEY")
         if not fred_api_key:
             return "FRED API key not set", 500
-        default_series_id = "DGS3MO"  # Example FRED series (e.g., 3-Month Treasury Rate)
+        default_series_id = "DGS3MO"  # FRED series (e.g., 3-Month Treasury Rate)
         macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
-        strategy_return, strategy_alpha, strategy_series = simple_backtest(
+        strategy_return, strategy_alpha, strategy_series, strategy_daily_returns = simple_backtest(
             prices_df,
             lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
         )
@@ -148,9 +149,45 @@ def backtest():
         strategy_series = (prices_df['returns'] * allocation + 1).cumprod()
         strategy_return = float(strategy_series.iloc[-1] - 1)
         strategy_alpha = float(strategy_return - prices_df['returns'].mean())
+        strategy_daily_returns = prices_df['returns'] * allocation
     else:
         # Default to naive if unrecognized
         strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
+        strategy_daily_returns = naive_returns
+
+    # Retrieve and merge risk-free rate data for performance metrics
+    fred_api_key = os.getenv("FRED_API_KEY")
+    risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+    prices_df.sort_values(by='Date', inplace=True)  # ensure sorted
+    risk_free_df.sort_values(by='Date', inplace=True)  # ensure sorted
+    merged_df = pd.merge_asof(prices_df, risk_free_df, on='Date', direction='backward')
+    merged_df['risk_free'] = merged_df['daily_rate'].fillna(method='ffill')
+
+    # Naive strategy metrics
+    merged_df['naive_excess'] = naive_returns - merged_df['risk_free'] # excess returns
+    naive_vol_excess = np.std(merged_df['naive_excess']) * np.sqrt(252)  # annualized volatility
+    naive_avg_excess = np.mean(merged_df['naive_excess']) * 252  # annualized average excess return
+    naive_sharpe = naive_avg_excess / (naive_vol_excess if naive_vol_excess != 0 else 1) # Sharpe ratio
+    naive_downside = np.std(merged_df['naive_excess'][merged_df['naive_excess'] < 0]) * np.sqrt(252)  # downside volatility
+    naive_sortino = naive_avg_excess / (naive_downside if naive_downside != 0 else 1) # Sortino ratio
+    naive_cum = naive_series  # cumulative series for naive
+    naive_drawdown = (naive_cum / naive_cum.cummax() - 1).min() # max drawdown
+
+    # Strategy metrics
+    merged_df['strategy_excess'] = strategy_daily_returns - merged_df['risk_free'] # excess returns
+    strategy_vol_excess = np.std(merged_df['strategy_excess']) * np.sqrt(252) # annualized volatility
+    strategy_avg_excess = np.mean(merged_df['strategy_excess']) * 252 # annualized average excess return
+    strategy_sharpe = strategy_avg_excess / (strategy_vol_excess if strategy_vol_excess != 0 else 1) # Sharpe ratio
+    strategy_downside = np.std(merged_df['strategy_excess'][merged_df['strategy_excess'] < 0]) * np.sqrt(252) # downside volatility
+    strategy_sortino = strategy_avg_excess / (strategy_downside if strategy_downside != 0 else 1) # Sortino ratio
+    strategy_cum = strategy_series # cumulative series for strategy
+    strategy_drawdown = (strategy_cum / strategy_cum.cummax() - 1).min() # max drawdown
+
+    # Beta, Jensen's Alpha, Treynor Ratio (using naive returns as benchmark)
+    cov_matrix = np.cov(strategy_daily_returns, naive_returns) # covariance matrix
+    strategy_beta = cov_matrix[0, 1] / (cov_matrix[1, 1] if cov_matrix[1, 1] != 0 else 1) # beta
+    jensens_alpha = (strategy_avg_excess - strategy_beta * naive_avg_excess) # Jensen's alpha
+    strategy_treynor = strategy_avg_excess / (strategy_beta if strategy_beta != 0 else 1) # Treynor ratio
 
     # Persist backtest results to the database (using dummy strategy and index IDs)
     result = BacktestResult(
@@ -187,6 +224,22 @@ def backtest():
         strategy_return=strategy_return,
         strategy_alpha=strategy_alpha,
         plot_html=plot_html
+        naive_sharpe=naive_sharpe,
+        naive_sortino=naive_sortino,
+        naive_beta=1,
+        naive_jensens_alpha=0,
+        naive_treynor=naive_avg_excess,
+        naive_vol_excess=naive_vol_excess,
+        naive_drawdown=naive_drawdown,
+        strategy_sharpe=strategy_sharpe,
+        strategy_sortino=strategy_sortino,
+        strategy_beta=strategy_beta,
+        strategy_jensens_alpha=jensens_alpha,
+        strategy_treynor=strategy_treynor,
+        strategy_vol_excess=strategy_vol_excess,
+        strategy_drawdown=strategy_drawdown,
+        naive_avg_excess=naive_avg_excess,
+        strategy_avg_excess=strategy_avg_excess
     )
 
 if __name__ == '__main__':
