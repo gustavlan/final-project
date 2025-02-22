@@ -1,5 +1,4 @@
 # CS50 Final Project: Asset Allocation Backtester
-#### Video Demo: https://youtu.be/tDYSbbfB59k
 
 #### Description:
 
