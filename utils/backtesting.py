@@ -3,6 +3,12 @@ import numpy as np
 import math
 import yfinance as yf  # For ETF liquidity data fetching
 
+
+def full_invested_strategy(df: pd.DataFrame):
+    """Simple allocation strategy that is always fully invested."""
+    # Return 1 for every row so broadcasting works in ``simple_backtest``.
+    return 1
+
 def simple_backtest(prices_df, allocation_strategy):
     """
     Naive buy & hold or dynamic backtest without macro data.
@@ -51,7 +57,7 @@ def simple_backtest(prices_df, allocation_strategy):
     cumulative_return = cumulative_series.iloc[-1] - 1
     alpha = cumulative_return - prices_df['returns'].mean()
     
-    return cumulative_return, alpha, cumulative_series, prices_df['strategy_returns']
+    return cumulative_return, alpha, cumulative_series
 
 
 def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):

@@ -120,11 +120,12 @@ def backtest():
         strategy_daily_returns = naive_returns # daily returns
     elif strategy_method == 'advanced':
         # Advanced market timing strategy using index data signals (plus ETF liquidity)
-        strategy_return, strategy_alpha, strategy_series, strategy_daily_returns = simple_backtest(
+        strategy_return, strategy_alpha, strategy_series = simple_backtest(
             prices_df, lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
         )
         strategy_return = float(strategy_return)
         strategy_alpha = float(strategy_alpha)
+        strategy_daily_returns = strategy_series.pct_change().fillna(0)
     elif strategy_method == 'macro':
         # Advanced market timing strategy incorporating macro data along with index signals
         fred_api_key = os.getenv("FRED_API_KEY")
@@ -132,12 +133,13 @@ def backtest():
             return "FRED API key not set", 500
         default_series_id = "DGS3MO"  # FRED series (e.g., 3-Month Treasury Rate)
         macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
-        strategy_return, strategy_alpha, strategy_series, strategy_daily_returns = simple_backtest(
+        strategy_return, strategy_alpha, strategy_series = simple_backtest(
             prices_df,
             lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
         )
         strategy_return = float(strategy_return)
         strategy_alpha = float(strategy_alpha)
+        strategy_daily_returns = strategy_series.pct_change().fillna(0)
     elif strategy_method == 'macro_only':
         # Strategy using only macro signals as a signal (allocations from -1 to 1)
         fred_api_key = os.getenv("FRED_API_KEY")
@@ -158,7 +160,12 @@ def backtest():
 
     # Retrieve and merge risk-free rate data for performance metrics
     fred_api_key = os.getenv("FRED_API_KEY")
-    risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+    if fred_api_key:
+        risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+    else:
+        # If no API key is provided, use a zero risk-free rate to avoid network calls
+        date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+        risk_free_df = pd.DataFrame({'Date': date_range, 'daily_rate': 0})
     prices_df.sort_values(by='Date', inplace=True)  # ensure sorted
     risk_free_df.sort_values(by='Date', inplace=True)  # ensure sorted
     merged_df = pd.merge_asof(prices_df, risk_free_df, on='Date', direction='backward')
@@ -191,6 +198,9 @@ def backtest():
     strategy_treynor = strategy_avg_excess / (strategy_beta if strategy_beta != 0 else 1) # Treynor ratio
 
     # Persist backtest results to the database (using dummy strategy and index IDs)
+    # Ensure tables exist when running in a fresh or in-memory database
+    db.create_all()
+
     result = BacktestResult(
         strategy_id=1,
         index_id=1,
