@@ -183,9 +183,11 @@ In addition to return calculations, the backtester computes several risk-adjuste
 
 4. **Environment Variables:**
 
-   Set up necessary environment variables. For example, set your FRED API key:
-   
+   Set up necessary environment variables. At a minimum you must define a
+   `SECRET_KEY` for Flask sessions. You can also set your FRED API key:
+
    ```bash
+   export SECRET_KEY="change_me"
    export FRED_API_KEY="your_fred_api_key_here"
    ```
 
@@ -193,7 +195,8 @@ In addition to return calculations, the backtester computes several risk-adjuste
 
 1. **Run the Application:**
 
-   With your virtual environment activated, start the Flask server:
+   Ensure the `SECRET_KEY` environment variable is defined, then start the Flask
+   server with your virtual environment activated:
    
    ```bash
    python app.py
