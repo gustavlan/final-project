@@ -27,8 +27,12 @@ This project is a web application for backtesting asset allocation strategies us
   - Retrieves historical index data from Yahoo Finance.
   - Retrieves macroeconomic data from FRED (if using the macro-based strategy).
 
-- **Data Persistence:**  
+- **Data Persistence:**
   Backtest results are stored in a SQLite database using SQLAlchemy.
+
+- **ETF Volume Caching:**
+  Volume data retrieved from yfinance is cached in memory per symbol so repeated
+  strategy calls avoid unnecessary network requests.
 
 - **Testing:**  
   Includes unit and integration tests (using pytest) to ensure code quality and robustness.
@@ -183,9 +187,11 @@ In addition to return calculations, the backtester computes several risk-adjuste
 
 4. **Environment Variables:**
 
-   Set up necessary environment variables. For example, set your FRED API key:
-   
+   Set up necessary environment variables. At a minimum you must define a
+   `SECRET_KEY` for Flask sessions. You can also set your FRED API key:
+
    ```bash
+   export SECRET_KEY="change_me"
    export FRED_API_KEY="your_fred_api_key_here"
    ```
 
@@ -193,7 +199,8 @@ In addition to return calculations, the backtester computes several risk-adjuste
 
 1. **Run the Application:**
 
-   With your virtual environment activated, start the Flask server:
+   Ensure the `SECRET_KEY` environment variable is defined, then start the Flask
+   server with your virtual environment activated:
    
    ```bash
    python app.py

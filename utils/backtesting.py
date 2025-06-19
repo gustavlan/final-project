@@ -7,6 +7,25 @@ import pandas as pd
 import numpy as np
 import yfinance as yf  # For ETF liquidity data fetching
 
+# In-memory cache for ETF volume data keyed by (ticker, start_date, end_date)
+_etf_volume_cache = {}
+
+
+def get_cached_etf_data(etf_ticker, start_date, end_date):
+    """Retrieve ETF data using yfinance with simple in-memory caching."""
+    key = (etf_ticker, str(start_date), str(end_date))
+    if key not in _etf_volume_cache:
+        data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
+        data.reset_index(inplace=True)
+        # Flatten MultiIndex columns if present
+        if isinstance(data.columns, pd.MultiIndex):
+            def flatten(col):
+                return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+
+            data.columns = [flatten(col) for col in data.columns]
+        _etf_volume_cache[key] = data
+    return _etf_volume_cache[key]
+
 
 def full_invested_strategy(df: pd.DataFrame) -> float:
     """Return a constant allocation weight of ``1.0``.
@@ -127,16 +146,11 @@ def dynamic_market_timing_strategy_advanced(
         if etf_ticker:
             start_date = df['Date'].min()
             end_date = df['Date'].max()
-            etf_data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
-            etf_data.reset_index(inplace=True)
-            # Flatten ETF columns if they are MultiIndex.
-            if isinstance(etf_data.columns, pd.MultiIndex):
-                def flatten_etf(col):
-                    return col[1] if isinstance(col, tuple) and len(col) > 1 else col
-                etf_data.columns = [flatten_etf(col) for col in etf_data.columns]
+            etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
             if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
-                recent_volume = etf_data['Volume'].iloc[-1]
-                avg_volume = etf_data['Volume'].iloc[-lookback:].mean()
+                sub_df = etf_data[(etf_data['Date'] >= start_date) & (etf_data['Date'] <= end_date)]
+                recent_volume = sub_df['Volume'].iloc[-1]
+                avg_volume = sub_df['Volume'].iloc[-lookback:].mean()
                 liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
                 liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
                 liquidity_signal = min(liquidity_signal, 1)
@@ -150,34 +164,14 @@ def dynamic_market_timing_strategy_advanced(
     return allocation
 
 
-def dynamic_market_timing_strategy_macro(
-    df: pd.DataFrame,
-    macro_df: pd.DataFrame,
-    etf_ticker: Optional[str] = None,
-) -> pd.Series:
-    """Return allocations using momentum, macro data and liquidity.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Price data containing ``Date`` and ``Close`` columns.
-    macro_df : pd.DataFrame
-        DataFrame of macroeconomic data with ``date`` and ``value`` columns.
-    etf_ticker : str, optional
-        Optional ETF ticker used for volume if index volume is missing.
-
-    Returns
-    -------
-    pd.Series
-        Series of allocation weights aligned to ``df``'s index.
-    """
-
+def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
+    """Vectorised market timing strategy using price and macro signals."""
     lookback = 20
-    # Work on copies and ensure date ordering
+
     df = df.copy()
     df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values(by='Date', inplace=True)
-    
+    df.sort_values('Date', inplace=True)
+
     macro_df = macro_df.copy()
     macro_df['date'] = pd.to_datetime(macro_df['date'])
     macro_df.sort_values(by='date', inplace=True)
@@ -240,6 +234,53 @@ def dynamic_market_timing_strategy_macro(
             
     # Return a series that aligns with the input DataFrame's index
     return pd.Series(allocations, index=df.index)
+
+    macro_df.sort_values('date', inplace=True)
+
+    # --- Price based calculations ---
+    df['returns'] = df['Close'].pct_change().fillna(0)
+    momentum = df['Close'].pct_change(periods=lookback)
+    momentum_signal = np.tanh(10 * momentum)
+
+    vol = df['returns'].rolling(lookback).std()
+    target_vol = 0.02
+    vol_scaling = target_vol / vol
+    vol_scaling[vol <= target_vol] = 1
+
+    # --- Macro data alignment and signals ---
+    macro_series = pd.merge_asof(
+        df[['Date']], macro_df[['date', 'value']], left_on='Date', right_on='date', direction='backward'
+    )['value']
+
+    macro_mean = macro_series.rolling(lookback).mean()
+    macro_std = macro_series.rolling(lookback).std()
+    macro_z = (macro_mean - macro_series) / macro_std.replace(0, np.nan)
+    macro_signal = np.tanh(macro_z)
+
+    # Replace initial NaNs with neutral values
+    momentum_signal = momentum_signal.fillna(0)
+    macro_signal = macro_signal.fillna(0)
+    vol_scaling = vol_scaling.fillna(1)
+
+    # --- Liquidity ---
+    if 'Volume' in df.columns and not df['Volume'].isnull().all():
+        avg_volume = df['Volume'].rolling(lookback).mean()
+        liquidity_ratio = df['Volume'] / avg_volume
+        liquidity_signal = np.where(liquidity_ratio >= 0.8, liquidity_ratio, liquidity_ratio / 0.8)
+        liquidity_signal = np.minimum(liquidity_signal, 1)
+        liquidity_signal = pd.Series(liquidity_signal, index=df.index).fillna(1)
+    else:
+        liquidity_signal = pd.Series(1, index=df.index)
+
+    combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
+    allocation = combined_signal * vol_scaling * liquidity_signal
+    allocation = allocation.clip(-1, 1)
+
+    # Until we have enough data, default to fully invested
+    allocation.iloc[:lookback] = 1
+
+    return pd.Series(allocation, index=df.index)
+
 
 def dynamic_macro_strategy(
     df: pd.DataFrame,

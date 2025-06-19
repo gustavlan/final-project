@@ -7,7 +7,9 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     # Basic Flask settings
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
+    # SECRET_KEY must be provided through the environment for production and
+    # development configurations.
+    SECRET_KEY = os.environ.get('SECRET_KEY')
     DEBUG = False
     TESTING = False
 
@@ -29,6 +31,7 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'test-secret-key'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
 class ProductionConfig(Config):
