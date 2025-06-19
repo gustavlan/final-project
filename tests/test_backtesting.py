@@ -1,3 +1,5 @@
+import os
+import sys
 import pandas as pd
 import numpy as np
 import pytest
@@ -5,7 +7,11 @@ from utils.backtesting import (
     simple_backtest,
     full_invested_strategy,
     dynamic_market_timing_strategy_macro,
+    dynamic_market_timing_strategy_advanced,
+    _etf_volume_cache,
 )
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 def test_simple_backtest():
     # Dummy DataFrame with controlled price data.
@@ -29,7 +35,7 @@ def test_simple_backtest():
     # Test to compare the values (allowing small differences)
     np.testing.assert_almost_equal(cumulative_return, expected_cum_return, decimal=2)
 
-
+    
 def test_dynamic_market_timing_strategy_macro_basic():
     """Ensure the macro strategy returns a valid allocation series."""
     dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
@@ -44,3 +50,29 @@ def test_dynamic_market_timing_strategy_macro_basic():
     assert (alloc.iloc[:20] == 1).all()
     # Allocation bounds
     assert (alloc <= 1).all() and (alloc >= -1).all()
+
+    
+def test_etf_volume_caching(monkeypatch):
+    """Ensure ETF data is fetched only once for repeated calls."""
+    import pandas as pd
+
+    # Create minimal price data without a Volume column to trigger ETF fetch
+    dates = pd.date_range(start='2022-01-01', periods=30, freq='D')
+    df = pd.DataFrame({'Date': dates, 'Close': range(100, 130)})
+    df['returns'] = df['Close'].pct_change().fillna(0)
+
+    call_count = {'n': 0}
+
+    def dummy_download(ticker, start, end, group_by='column'):
+        call_count['n'] += 1
+        vol_df = pd.DataFrame({'Volume': [100000] * len(dates)}, index=dates)
+        vol_df.index.name = 'Date'
+        return vol_df
+
+    monkeypatch.setattr('utils.backtesting.yf.download', dummy_download)
+
+    dynamic_market_timing_strategy_advanced(df.copy(), etf_ticker='SPY')
+    dynamic_market_timing_strategy_advanced(df.copy(), etf_ticker='SPY')
+
+    assert call_count['n'] == 1
+    assert ('SPY', str(df['Date'].min()), str(df['Date'].max())) in _etf_volume_cache
