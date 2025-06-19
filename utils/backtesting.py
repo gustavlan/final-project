@@ -1,26 +1,50 @@
+"""Utility functions for running simple and dynamic backtests."""
+
+from typing import Callable, Optional, Tuple, Union
+
+import math
 import pandas as pd
 import numpy as np
-import math
 import yfinance as yf  # For ETF liquidity data fetching
 
 
-def full_invested_strategy(df: pd.DataFrame):
-    """Simple allocation strategy that is always fully invested."""
-    # Return 1 for every row so broadcasting works in ``simple_backtest``.
-    return 1
+def full_invested_strategy(df: pd.DataFrame) -> float:
+    """Return a constant allocation weight of ``1.0``.
 
-def simple_backtest(prices_df, allocation_strategy):
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Price data used by the strategy. The contents are ignored.
+
+    Returns
+    -------
+    float
+        Constant weight indicating the portfolio is fully invested.
     """
-    Naive buy & hold or dynamic backtest without macro data.
-    
-    Parameters:
-        prices_df (DataFrame): Historical price data with a valid price column and Date column.
-        allocation_strategy (function): Function that returns an allocation weight given the DataFrame.
-    
-    Returns:
-        cumulative_return (float): The cumulative return of the strategy.
-        alpha (float): The difference between cumulative return and average daily return.
-        cumulative_series (Series): The cumulative returns over time.
+
+    # Return 1 for every row so broadcasting works in ``simple_backtest``.
+    return 1.0
+
+def simple_backtest(
+    prices_df: pd.DataFrame,
+    allocation_strategy: Callable[[pd.DataFrame], Union[float, pd.Series]],
+) -> Tuple[float, float, pd.Series]:
+    """Run a naive or user-defined backtest.
+
+    Parameters
+    ----------
+    prices_df : pd.DataFrame
+        Historical prices containing a ``Date`` column and either ``Close`` or
+        ``Adj Close`` prices.
+    allocation_strategy : Callable[[pd.DataFrame], float | pd.Series]
+        Function that returns either a constant weight or a series of weights
+        when provided with the price DataFrame.
+
+    Returns
+    -------
+    Tuple[float, float, pd.Series]
+        ``(cumulative_return, alpha, cumulative_series)`` where ``cumulative_series``
+        contains the cumulative strategy returns over time.
     """
     # Ensure a proper Date column exists and sort by date
     if 'Date' not in prices_df.columns:
@@ -60,16 +84,22 @@ def simple_backtest(prices_df, allocation_strategy):
     return cumulative_return, alpha, cumulative_series
 
 
-def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
-    """
-    Advanced market timing strategy using index data and ETF liquidity proxy.
-    
-    Parameters:
-        df (DataFrame): Historical price data; must contain at least 'Close' and 'returns' columns.
-        etf_ticker (str): Optional ETF ticker for liquidity proxy.
-        
-    Returns:
-        allocation (float): Allocation weight between 0 and 1.
+def dynamic_market_timing_strategy_advanced(
+    df: pd.DataFrame, etf_ticker: Optional[str] = None
+) -> float:
+    """Calculate an allocation weight using momentum, volatility and liquidity.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing at least ``Date``, ``Close`` and ``returns`` columns.
+    etf_ticker : str, optional
+        ETF symbol to fetch volume data from if index volume is missing.
+
+    Returns
+    -------
+    float
+        Allocation weight between 0 and 1.
     """
     lookback = 20
     if len(df) < lookback + 1:
@@ -120,7 +150,28 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
     return allocation
 
 
-def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
+def dynamic_market_timing_strategy_macro(
+    df: pd.DataFrame,
+    macro_df: pd.DataFrame,
+    etf_ticker: Optional[str] = None,
+) -> pd.Series:
+    """Return allocations using momentum, macro data and liquidity.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Price data containing ``Date`` and ``Close`` columns.
+    macro_df : pd.DataFrame
+        DataFrame of macroeconomic data with ``date`` and ``value`` columns.
+    etf_ticker : str, optional
+        Optional ETF ticker used for volume if index volume is missing.
+
+    Returns
+    -------
+    pd.Series
+        Series of allocation weights aligned to ``df``'s index.
+    """
+
     lookback = 20
     # Work on copies and ensure date ordering
     df = df.copy()
@@ -131,13 +182,13 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     macro_df['date'] = pd.to_datetime(macro_df['date'])
     macro_df.sort_values(by='date', inplace=True)
     
-    allocations = []
+    allocations: list[float] = []
     n = len(df)
     
     for i in range(n):
         # Until we have enough data, default to fully long
         if i < lookback:
-            allocations.append(1)
+            allocations.append(1.0)
         else:
             window = df.iloc[i - lookback : i + 1].copy()
             # Ensure we have daily returns computed
@@ -153,7 +204,7 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
             current_date = window['Date'].iloc[-1]
             macro_values = macro_df[macro_df['date'] <= current_date]['value']
             if macro_values.empty or len(macro_values) < lookback:
-                macro_signal = 0  # neutral if not enough macro data
+                macro_signal = 0.0  # neutral if not enough macro data
             else:
                 current_macro = macro_values.iloc[-1]
                 # Use the last 'lookback' days from the macro series
@@ -190,7 +241,28 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     # Return a series that aligns with the input DataFrame's index
     return pd.Series(allocations, index=df.index)
 
-def dynamic_macro_strategy(df, macro_df, etf_ticker=None):
+def dynamic_macro_strategy(
+    df: pd.DataFrame,
+    macro_df: pd.DataFrame,
+    etf_ticker: Optional[str] = None,
+) -> pd.Series:
+    """Allocate purely based on macroeconomic signals.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Price data with a ``Date`` column.
+    macro_df : pd.DataFrame
+        Macroeconomic values with ``date`` and ``value`` columns.
+    etf_ticker : str, optional
+        Kept for API compatibility; ignored in this implementation.
+
+    Returns
+    -------
+    pd.Series
+        Series of allocations indexed like ``df``.
+    """
+
     lookback = 20
     df = df.copy()
     df['Date'] = pd.to_datetime(df['Date'])
@@ -200,17 +272,17 @@ def dynamic_macro_strategy(df, macro_df, etf_ticker=None):
     macro_df['date'] = pd.to_datetime(macro_df['date'])
     macro_df.sort_values(by='date', inplace=True)
     
-    allocations = []
+    allocations: list[float] = []
     n = len(df)
     
     for i in range(n):
         if i < lookback:
-            allocations.append(1)
+            allocations.append(1.0)
         else:
             current_date = df['Date'].iloc[i]
             macro_values = macro_df[macro_df['date'] <= current_date]['value']
             if macro_values.empty or len(macro_values) < lookback:
-                allocation = 1
+                allocation = 1.0
             else:
                 current_macro = macro_values.iloc[-1]
                 macro_window = macro_df[macro_df['date'] <= current_date].tail(lookback)

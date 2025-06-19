@@ -1,23 +1,46 @@
+"""Helpers for fetching price and macroeconomic data."""
+
+import pandas as pd
 import yfinance as yf
 from fredapi import Fred
-import pandas as pd
 
-def get_yahoo_data(symbol, start_date, end_date):
-    """Retrieve historical data for a given symbol from Yahoo Finance, grouping by column names."""
-    data = yf.download(symbol, start=start_date, end=end_date, group_by='column')
+def get_yahoo_data(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """Download historical price data from Yahoo Finance."""
+
+    data = yf.download(symbol, start=start_date, end=end_date, group_by="column")
     return data
 
-def get_fred_data(api_key, series_id, start_date, end_date):
-    """Retrieve macroeconomic data from FRED."""
+def get_fred_data(
+    api_key: str, series_id: str, start_date: str, end_date: str
+) -> pd.DataFrame:
+    """Retrieve a FRED series as a DataFrame with ``date`` and ``value``."""
+
     fred = Fred(api_key=api_key)
-    data = fred.get_series(series_id, observation_start=start_date, observation_end=end_date)
-    df = pd.DataFrame(data, columns=['value']).reset_index().rename(columns={'index': 'date'})
+    data = fred.get_series(
+        series_id, observation_start=start_date, observation_end=end_date
+    )
+    df = (
+        pd.DataFrame(data, columns=["value"]) 
+        .reset_index()
+        .rename(columns={"index": "date"})
+    )
     return df
 
-def get_risk_free_rate(api_key, start_date, end_date):
-    """
-    Retrieve the 3-Month Treasury yield from FRED and convert it to a daily rate.
-    Assumes the yield is annualized in percentage terms.
+def get_risk_free_rate(api_key: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """Return a daily risk-free rate series from FRED.
+
+    Parameters
+    ----------
+    api_key : str
+        FRED API key.
+    start_date, end_date : str
+        Date range to retrieve.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with ``Date`` and ``daily_rate`` columns representing the
+        3-month Treasury yield converted to a daily rate.
     """
     series_id = "DGS3MO"
     df = get_fred_data(api_key, series_id, start_date, end_date)
