@@ -27,8 +27,12 @@ This project is a web application for backtesting asset allocation strategies us
   - Retrieves historical index data from Yahoo Finance.
   - Retrieves macroeconomic data from FRED (if using the macro-based strategy).
 
-- **Data Persistence:**  
+- **Data Persistence:**
   Backtest results are stored in a SQLite database using SQLAlchemy.
+
+- **ETF Volume Caching:**
+  Volume data retrieved from yfinance is cached in memory per symbol so repeated
+  strategy calls avoid unnecessary network requests.
 
 - **Testing:**  
   Includes unit and integration tests (using pytest) to ensure code quality and robustness.

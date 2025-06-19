@@ -3,6 +3,25 @@ import numpy as np
 import math
 import yfinance as yf  # For ETF liquidity data fetching
 
+# In-memory cache for ETF volume data keyed by (ticker, start_date, end_date)
+_etf_volume_cache = {}
+
+
+def get_cached_etf_data(etf_ticker, start_date, end_date):
+    """Retrieve ETF data using yfinance with simple in-memory caching."""
+    key = (etf_ticker, str(start_date), str(end_date))
+    if key not in _etf_volume_cache:
+        data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
+        data.reset_index(inplace=True)
+        # Flatten MultiIndex columns if present
+        if isinstance(data.columns, pd.MultiIndex):
+            def flatten(col):
+                return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+
+            data.columns = [flatten(col) for col in data.columns]
+        _etf_volume_cache[key] = data
+    return _etf_volume_cache[key]
+
 
 def full_invested_strategy(df: pd.DataFrame):
     """Simple allocation strategy that is always fully invested."""
@@ -97,16 +116,11 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
         if etf_ticker:
             start_date = df['Date'].min()
             end_date = df['Date'].max()
-            etf_data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
-            etf_data.reset_index(inplace=True)
-            # Flatten ETF columns if they are MultiIndex.
-            if isinstance(etf_data.columns, pd.MultiIndex):
-                def flatten_etf(col):
-                    return col[1] if isinstance(col, tuple) and len(col) > 1 else col
-                etf_data.columns = [flatten_etf(col) for col in etf_data.columns]
+            etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
             if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
-                recent_volume = etf_data['Volume'].iloc[-1]
-                avg_volume = etf_data['Volume'].iloc[-lookback:].mean()
+                sub_df = etf_data[(etf_data['Date'] >= start_date) & (etf_data['Date'] <= end_date)]
+                recent_volume = sub_df['Volume'].iloc[-1]
+                avg_volume = sub_df['Volume'].iloc[-lookback:].mean()
                 liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
                 liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
                 liquidity_signal = min(liquidity_signal, 1)
@@ -179,7 +193,21 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
                 liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
                 liquidity_signal = min(liquidity_signal, 1)
             else:
-                liquidity_signal = 1
+                if etf_ticker:
+                    start_date = window['Date'].min()
+                    end_date = window['Date'].max()
+                    etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
+                    if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
+                        sub_df = etf_data[(etf_data['Date'] >= start_date) & (etf_data['Date'] <= end_date)]
+                        recent_volume = sub_df['Volume'].iloc[-1]
+                        avg_volume = sub_df['Volume'].mean()
+                        liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+                        liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
+                        liquidity_signal = min(liquidity_signal, 1)
+                    else:
+                        liquidity_signal = 1
+                else:
+                    liquidity_signal = 1
             
             # --- Final Allocation ---
             allocation = combined_signal * vol_scaling * liquidity_signal
