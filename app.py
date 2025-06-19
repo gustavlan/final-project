@@ -213,10 +213,14 @@ def register_routes(app):
         strategy_drawdown = (strategy_cum / strategy_cum.cummax() - 1).min()  # max drawdown
 
         # Beta, Jensen's Alpha, Treynor Ratio (using naive returns as benchmark)
-        cov_matrix = np.cov(strategy_daily_returns, naive_returns)  # covariance matrix
-        strategy_beta = cov_matrix[0, 1] / (cov_matrix[1, 1] if cov_matrix[1, 1] != 0 else 1)  # beta
-        jensens_alpha = (strategy_avg_excess - strategy_beta * naive_avg_excess)  # Jensen's alpha
-        strategy_treynor = strategy_avg_excess / (strategy_beta if strategy_beta != 0 else 1)  # Treynor ratio
+        aligned = pd.concat([
+            strategy_daily_returns.rename('strategy'),
+            naive_returns.rename('naive')
+        ], axis=1).dropna()
+        beta = aligned['strategy'].cov(aligned['naive']) / aligned['naive'].var()
+        jensens_alpha = strategy_avg_excess - beta * naive_avg_excess
+        strategy_treynor = strategy_avg_excess / (beta if beta != 0 else 1)
+        strategy_beta = beta
 
         # Persist backtest results to the database (using dummy strategy and index IDs)
         result = BacktestResult(
