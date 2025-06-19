@@ -1,7 +1,11 @@
 import pandas as pd
 import numpy as np
 import pytest
-from utils.backtesting import simple_backtest, full_invested_strategy
+from utils.backtesting import (
+    simple_backtest,
+    full_invested_strategy,
+    dynamic_market_timing_strategy_macro,
+)
 
 def test_simple_backtest():
     # Dummy DataFrame with controlled price data.
@@ -24,3 +28,19 @@ def test_simple_backtest():
     
     # Test to compare the values (allowing small differences)
     np.testing.assert_almost_equal(cumulative_return, expected_cum_return, decimal=2)
+
+
+def test_dynamic_market_timing_strategy_macro_basic():
+    """Ensure the macro strategy returns a valid allocation series."""
+    dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
+    prices = pd.DataFrame({"Date": dates, "Close": np.linspace(100, 130, 30), "Volume": 1000})
+    macro = pd.DataFrame({"date": dates, "value": np.linspace(1, 2, 30)})
+
+    alloc = dynamic_market_timing_strategy_macro(prices, macro)
+
+    assert isinstance(alloc, pd.Series)
+    assert len(alloc) == len(prices)
+    # First lookback values should be 1
+    assert (alloc.iloc[:20] == 1).all()
+    # Allocation bounds
+    assert (alloc <= 1).all() and (alloc >= -1).all()
