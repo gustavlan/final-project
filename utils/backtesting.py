@@ -135,88 +135,62 @@ def dynamic_market_timing_strategy_advanced(df, etf_ticker=None):
 
 
 def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
+    """Vectorised market timing strategy using price and macro signals."""
     lookback = 20
-    # Work on copies and ensure date ordering
+
     df = df.copy()
     df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values(by='Date', inplace=True)
-    
+    df.sort_values('Date', inplace=True)
+
     macro_df = macro_df.copy()
     macro_df['date'] = pd.to_datetime(macro_df['date'])
-    macro_df.sort_values(by='date', inplace=True)
-    
-    allocations = []
-    n = len(df)
-    
-    for i in range(n):
-        # Until we have enough data, default to fully long
-        if i < lookback:
-            allocations.append(1)
-        else:
-            window = df.iloc[i - lookback : i + 1].copy()
-            # Ensure we have daily returns computed
-            window['returns'] = window['Close'].pct_change().fillna(0)
-            
-            # --- Momentum Signal ---
-            # Use the change from the first day in the window to the current day
-            momentum = window['Close'].iloc[-1] / window['Close'].iloc[0] - 1
-            momentum_signal = math.tanh(10 * momentum)  # scales to roughly -1 to 1
-            
-            # --- Macro Signal ---
-            # Get macro data up to the current date
-            current_date = window['Date'].iloc[-1]
-            macro_values = macro_df[macro_df['date'] <= current_date]['value']
-            if macro_values.empty or len(macro_values) < lookback:
-                macro_signal = 0  # neutral if not enough macro data
-            else:
-                current_macro = macro_values.iloc[-1]
-                # Use the last 'lookback' days from the macro series
-                macro_window = macro_df[macro_df['date'] <= current_date].tail(lookback)
-                rolling_avg = macro_window['value'].mean()
-                rolling_std = macro_window['value'].std()
-                macro_z = (rolling_avg - current_macro) / (rolling_std if rolling_std != 0 else 1)
-                macro_signal = math.tanh(macro_z)
-            
-            # --- Combine Signals ---
-            combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
-            
-            # --- Volatility Scaling ---
-            vol = window['returns'].std()
-            target_vol = 0.02  # Target daily volatility
-            vol_scaling = target_vol / vol if vol > target_vol else 1
-            
-            # --- Liquidity Signal ---
-            if 'Volume' in window.columns and not window['Volume'].isnull().all():
-                recent_volume = window['Volume'].iloc[-1]
-                avg_volume = window['Volume'].mean()
-                liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-                liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-                liquidity_signal = min(liquidity_signal, 1)
-            else:
-                if etf_ticker:
-                    start_date = window['Date'].min()
-                    end_date = window['Date'].max()
-                    etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
-                    if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
-                        sub_df = etf_data[(etf_data['Date'] >= start_date) & (etf_data['Date'] <= end_date)]
-                        recent_volume = sub_df['Volume'].iloc[-1]
-                        avg_volume = sub_df['Volume'].mean()
-                        liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-                        liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-                        liquidity_signal = min(liquidity_signal, 1)
-                    else:
-                        liquidity_signal = 1
-                else:
-                    liquidity_signal = 1
-            
-            # --- Final Allocation ---
-            allocation = combined_signal * vol_scaling * liquidity_signal
-            # Clamp allocation between -1 (fully short) and 1 (fully long)
-            allocation = max(-1, min(allocation, 1))
-            allocations.append(allocation)
-            
-    # Return a series that aligns with the input DataFrame's index
-    return pd.Series(allocations, index=df.index)
+
+    macro_df.sort_values('date', inplace=True)
+
+    # --- Price based calculations ---
+    df['returns'] = df['Close'].pct_change().fillna(0)
+    momentum = df['Close'].pct_change(periods=lookback)
+    momentum_signal = np.tanh(10 * momentum)
+
+    vol = df['returns'].rolling(lookback).std()
+    target_vol = 0.02
+    vol_scaling = target_vol / vol
+    vol_scaling[vol <= target_vol] = 1
+
+    # --- Macro data alignment and signals ---
+    macro_series = pd.merge_asof(
+        df[['Date']], macro_df[['date', 'value']], left_on='Date', right_on='date', direction='backward'
+    )['value']
+
+    macro_mean = macro_series.rolling(lookback).mean()
+    macro_std = macro_series.rolling(lookback).std()
+    macro_z = (macro_mean - macro_series) / macro_std.replace(0, np.nan)
+    macro_signal = np.tanh(macro_z)
+
+    # Replace initial NaNs with neutral values
+    momentum_signal = momentum_signal.fillna(0)
+    macro_signal = macro_signal.fillna(0)
+    vol_scaling = vol_scaling.fillna(1)
+
+    # --- Liquidity ---
+    if 'Volume' in df.columns and not df['Volume'].isnull().all():
+        avg_volume = df['Volume'].rolling(lookback).mean()
+        liquidity_ratio = df['Volume'] / avg_volume
+        liquidity_signal = np.where(liquidity_ratio >= 0.8, liquidity_ratio, liquidity_ratio / 0.8)
+        liquidity_signal = np.minimum(liquidity_signal, 1)
+        liquidity_signal = pd.Series(liquidity_signal, index=df.index).fillna(1)
+    else:
+        liquidity_signal = pd.Series(1, index=df.index)
+
+    combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
+    allocation = combined_signal * vol_scaling * liquidity_signal
+    allocation = allocation.clip(-1, 1)
+
+    # Until we have enough data, default to fully invested
+    allocation.iloc[:lookback] = 1
+
+    return pd.Series(allocation, index=df.index)
+
 
 def dynamic_macro_strategy(df, macro_df, etf_ticker=None):
     lookback = 20
