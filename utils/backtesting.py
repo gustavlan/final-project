@@ -235,51 +235,6 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     # Return a series that aligns with the input DataFrame's index
     return pd.Series(allocations, index=df.index)
 
-    macro_df.sort_values('date', inplace=True)
-
-    # --- Price based calculations ---
-    df['returns'] = df['Close'].pct_change().fillna(0)
-    momentum = df['Close'].pct_change(periods=lookback)
-    momentum_signal = np.tanh(10 * momentum)
-
-    vol = df['returns'].rolling(lookback).std()
-    target_vol = 0.02
-    vol_scaling = target_vol / vol
-    vol_scaling[vol <= target_vol] = 1
-
-    # --- Macro data alignment and signals ---
-    macro_series = pd.merge_asof(
-        df[['Date']], macro_df[['date', 'value']], left_on='Date', right_on='date', direction='backward'
-    )['value']
-
-    macro_mean = macro_series.rolling(lookback).mean()
-    macro_std = macro_series.rolling(lookback).std()
-    macro_z = (macro_mean - macro_series) / macro_std.replace(0, np.nan)
-    macro_signal = np.tanh(macro_z)
-
-    # Replace initial NaNs with neutral values
-    momentum_signal = momentum_signal.fillna(0)
-    macro_signal = macro_signal.fillna(0)
-    vol_scaling = vol_scaling.fillna(1)
-
-    # --- Liquidity ---
-    if 'Volume' in df.columns and not df['Volume'].isnull().all():
-        avg_volume = df['Volume'].rolling(lookback).mean()
-        liquidity_ratio = df['Volume'] / avg_volume
-        liquidity_signal = np.where(liquidity_ratio >= 0.8, liquidity_ratio, liquidity_ratio / 0.8)
-        liquidity_signal = np.minimum(liquidity_signal, 1)
-        liquidity_signal = pd.Series(liquidity_signal, index=df.index).fillna(1)
-    else:
-        liquidity_signal = pd.Series(1, index=df.index)
-
-    combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
-    allocation = combined_signal * vol_scaling * liquidity_signal
-    allocation = allocation.clip(-1, 1)
-
-    # Until we have enough data, default to fully invested
-    allocation.iloc[:lookback] = 1
-
-    return pd.Series(allocation, index=df.index)
 
 
 def dynamic_macro_strategy(
