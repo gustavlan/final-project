@@ -1,3 +1,5 @@
+import os
+import sys
 import pandas as pd
 import numpy as np
 import pytest
@@ -7,6 +9,8 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_advanced,
     _etf_volume_cache,
 )
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 def test_simple_backtest():
     # Dummy DataFrame with controlled price data.
