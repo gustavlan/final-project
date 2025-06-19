@@ -1,6 +1,10 @@
+import os
+import sys
 import pandas as pd
 import numpy as np
 import pytest
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.backtesting import simple_backtest, full_invested_strategy
 
 def test_simple_backtest():
