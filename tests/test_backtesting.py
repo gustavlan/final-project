@@ -10,6 +10,8 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
     _etf_volume_cache,
+    _enforce_cache_limit,
+    _ETF_VOLUME_CACHE_MAX_SIZE,
 )
 
 
@@ -68,6 +70,23 @@ def test_etf_volume_caching(mock_yfinance):
 
     assert mock_yfinance['n'] == 1
     assert ('SPY', str(df['Date'].min()), str(df['Date'].max())) in _etf_volume_cache
+
+
+def test_disk_cache_cleanup(tmp_path):
+    """Ensure disk cache is cleaned when exceeding the size limit."""
+
+    _etf_volume_cache.clear()
+    cache_dir = tmp_path / "cache"
+
+    for i in range(_ETF_VOLUME_CACHE_MAX_SIZE + 5):
+        key = (f"T{i}", "2020-01-01", "2020-01-02")
+        df = pd.DataFrame({"Date": [pd.Timestamp("2020-01-01")], "Close": [1], "Volume": [1]})
+        _etf_volume_cache[key] = df
+
+    _enforce_cache_limit(str(cache_dir))
+
+    cache_files = list(cache_dir.glob("*.pkl"))
+    assert len(cache_files) <= _ETF_VOLUME_CACHE_MAX_SIZE
 
 
 def test_dynamic_advanced_returns_series():
