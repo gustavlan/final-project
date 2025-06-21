@@ -31,8 +31,10 @@ This project is a web application for backtesting asset allocation strategies us
   Backtest results are stored in a SQLite database using SQLAlchemy.
 
 - **ETF Volume Caching:**
-  Volume data retrieved from yfinance is cached in memory per symbol so repeated
-  strategy calls avoid unnecessary network requests.
+  Volume data retrieved from yfinance is cached with an in-memory LRU cache.
+  Entries beyond the size limit are optionally written to disk so repeated
+  strategy calls avoid unnecessary network requests without unbounded memory
+  usage.
 
 - **Testing:**  
   Includes unit and integration tests (using pytest) to ensure code quality and robustness.
