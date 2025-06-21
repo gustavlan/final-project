@@ -23,6 +23,31 @@ def _enforce_cache_limit(cache_dir: Optional[str] = None) -> None:
             os.makedirs(cache_dir, exist_ok=True)
             filename = f"{old_key[0]}_{old_key[1]}_{old_key[2]}.pkl"
             old_df.to_pickle(os.path.join(cache_dir, filename))
+    if cache_dir:
+        _cleanup_disk_cache(cache_dir)
+
+
+def _cleanup_disk_cache(cache_dir: str) -> None:
+    """Remove oldest cache files on disk when exceeding the cache limit."""
+
+    try:
+        files = [
+            os.path.join(cache_dir, f)
+            for f in os.listdir(cache_dir)
+            if f.endswith(".pkl")
+        ]
+    except FileNotFoundError:
+        return
+
+    if len(files) <= _ETF_VOLUME_CACHE_MAX_SIZE:
+        return
+
+    files.sort(key=os.path.getmtime, reverse=True)
+    for path in files[_ETF_VOLUME_CACHE_MAX_SIZE:]:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def get_cached_etf_data(
