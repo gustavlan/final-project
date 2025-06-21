@@ -1,13 +1,17 @@
 from extensions import db
 
 class Index(db.Model):
+    """Market indices such as S&P 500 or Dow Jones."""
+
+    __tablename__ = "indices"
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     symbol = db.Column(db.String(10), nullable=False, unique=True)
 
 class HistoricalPrice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    index_id = db.Column(db.Integer, db.ForeignKey('index.id'), nullable=False)
+    index_id = db.Column(db.Integer, db.ForeignKey('indices.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
     open = db.Column(db.Float)
     high = db.Column(db.Float)
@@ -31,7 +35,7 @@ class Strategy(db.Model):
 class BacktestResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     strategy_id = db.Column(db.Integer, db.ForeignKey('strategy.id'), nullable=False)
-    index_id = db.Column(db.Integer, db.ForeignKey('index.id'), nullable=False)
+    index_id = db.Column(db.Integer, db.ForeignKey('indices.id'), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     returns = db.Column(db.Float)
