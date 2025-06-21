@@ -146,7 +146,10 @@ def dynamic_market_timing_strategy_advanced(
 
     allocations: list[float] = []
 
-    for i in range(n):
+    # Iterate over the DataFrame to build up the allocation series. This keeps
+    # the logic straightforward and allows more complex stateful calculations
+    # if needed in the future.
+    for i, _ in enumerate(df.index):
         if i < lookback:
             allocations.append(1.0)
             continue
