@@ -187,11 +187,23 @@ In addition to return calculations, the backtester computes several risk-adjuste
 
 4. **Environment Variables:**
 
-   Set up necessary environment variables. At a minimum you must define a
-   `SECRET_KEY` for Flask sessions. You can also set your FRED API key:
+   The application reads several configuration values from the environment.
+   Below is a list of the variables and their purpose:
+
+   | Variable        | Description                                                    | Default                      |
+   |-----------------|----------------------------------------------------------------|------------------------------|
+   | `SECRET_KEY`    | Flask session secret key (**required**).                       | none                         |
+   | `DATABASE_URL`  | SQLAlchemy database URI.                                       | `sqlite:///final_project.db` |
+   | `LOG_TO_STDOUT` | If set, logs are written to STDOUT instead of a file.          | not set                      |
+   | `LOG_LEVEL`     | Logging verbosity level.                                       | `INFO`                       |
+   | `FRED_API_KEY`  | API key for retrieving macro data from FRED (optional).        | not set                      |
+
+   Example of exporting these variables in your shell:
 
    ```bash
    export SECRET_KEY="change_me"
+   # Optional settings
+   export DATABASE_URL="sqlite:///custom.db"
    export FRED_API_KEY="your_fred_api_key_here"
    ```
 
