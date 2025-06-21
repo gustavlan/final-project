@@ -6,25 +6,42 @@ import math
 import pandas as pd
 import numpy as np
 import yfinance as yf  # For ETF liquidity data fetching
+from collections import OrderedDict
 
 # In-memory cache for ETF volume data keyed by (ticker, start_date, end_date)
-_etf_volume_cache = {}
+# The cache is limited in size to avoid unbounded memory usage. When the cache
+# exceeds the configured maximum size, the least recently used entry is evicted.
+_ETF_VOLUME_CACHE_MAX_SIZE = 50
+_etf_volume_cache: "OrderedDict[tuple, pd.DataFrame]" = OrderedDict()
 
 
 def get_cached_etf_data(etf_ticker, start_date, end_date):
-    """Retrieve ETF data using yfinance with simple in-memory caching."""
+    """Retrieve ETF volume data using a small LRU cache."""
     key = (etf_ticker, str(start_date), str(end_date))
-    if key not in _etf_volume_cache:
-        data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
-        data.reset_index(inplace=True)
-        # Flatten MultiIndex columns if present
-        if isinstance(data.columns, pd.MultiIndex):
-            def flatten(col):
-                return col[1] if isinstance(col, tuple) and len(col) > 1 else col
 
-            data.columns = [flatten(col) for col in data.columns]
-        _etf_volume_cache[key] = data
-    return _etf_volume_cache[key]
+    if key in _etf_volume_cache:
+        # Move the recently accessed key to the end to mark it as recently used.
+        _etf_volume_cache.move_to_end(key)
+        return _etf_volume_cache[key]
+
+    data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
+    data.reset_index(inplace=True)
+
+    # Flatten MultiIndex columns if present
+    if isinstance(data.columns, pd.MultiIndex):
+        def flatten(col):
+            return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+
+        data.columns = [flatten(col) for col in data.columns]
+
+    _etf_volume_cache[key] = data
+    _etf_volume_cache.move_to_end(key)
+
+    # Enforce cache size limit
+    if len(_etf_volume_cache) > _ETF_VOLUME_CACHE_MAX_SIZE:
+        _etf_volume_cache.popitem(last=False)
+
+    return data
 
 
 def full_invested_strategy(df: pd.DataFrame) -> float:

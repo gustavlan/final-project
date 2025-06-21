@@ -12,6 +12,7 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
     _etf_volume_cache,
+    get_cached_etf_data,
 )
 
 
@@ -102,3 +103,19 @@ def test_simple_backtest_with_dynamic_series():
         expected_series.reset_index(drop=True),
         check_names=False,
     )
+
+
+def test_etf_cache_eviction(monkeypatch, mock_yfinance):
+    """Cache should evict least recently used items when size limit is exceeded."""
+    monkeypatch.setattr('utils.backtesting._ETF_VOLUME_CACHE_MAX_SIZE', 2)
+    _etf_volume_cache.clear()
+
+    start, end = '2022-01-01', '2022-01-10'
+    get_cached_etf_data('AAA', start, end)
+    get_cached_etf_data('BBB', start, end)
+    assert len(_etf_volume_cache) == 2
+
+    # This call should trigger eviction of the oldest key ('AAA')
+    get_cached_etf_data('CCC', start, end)
+    assert len(_etf_volume_cache) == 2
+    assert ('AAA', start, end) not in _etf_volume_cache
