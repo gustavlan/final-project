@@ -102,3 +102,17 @@ def test_simple_backtest_with_dynamic_series():
         expected_series.reset_index(drop=True),
         check_names=False,
     )
+
+
+def test_momentum_signal_no_overflow():
+    """Extreme price changes should not cause overflow in momentum signal."""
+    dates = pd.date_range(start="2021-01-01", periods=25, freq="D")
+    up = pd.DataFrame({"Date": dates, "Close": [1] * 20 + [1000] * 5, "Volume": 1000})
+    up["returns"] = up["Close"].pct_change().fillna(0)
+    alloc_up = dynamic_market_timing_strategy_advanced(up)
+    assert np.isfinite(alloc_up.iloc[-1])
+
+    down = pd.DataFrame({"Date": dates, "Close": [1000] * 20 + [1] * 5, "Volume": 1000})
+    down["returns"] = down["Close"].pct_change().fillna(0)
+    alloc_down = dynamic_market_timing_strategy_advanced(down)
+    assert np.isfinite(alloc_down.iloc[-1])
