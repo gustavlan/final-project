@@ -148,165 +148,126 @@ def simple_backtest(
 def dynamic_market_timing_strategy_advanced(
     df: pd.DataFrame, etf_ticker: Optional[str] = None
 ) -> pd.Series:
-    """Generate a series of allocation weights based on price and liquidity signals.
+    """Generate allocation weights using price momentum, volatility and liquidity.
 
-    This function now iterates over the provided DataFrame and returns a
-    ``pd.Series`` aligned with ``df`` so that it can be directly consumed by
-    ``simple_backtest``.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing ``Date`` and ``Close`` columns. ``returns`` should
-        already be calculated on the frame (``simple_backtest`` ensures this).
-    etf_ticker : str, optional
-        ETF symbol to fetch volume data from if index volume is missing.
-
-    Returns
-    -------
-    pd.Series
-        Allocation weights between 0 and 1 for each row of ``df``.
+    This vectorised version uses rolling windows instead of explicit loops.
+    ``df`` should contain ``Date``, ``Close`` and optionally ``Volume`` columns
+    with daily ``returns`` already calculated.
     """
 
     lookback = 20
 
     df = df.copy()
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values('Date', inplace=True)
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
 
-    n = len(df)
+    if "returns" not in df.columns:
+        df["returns"] = df["Close"].pct_change().fillna(0)
 
-    # Pre-fetch ETF volume data if required
-    etf_data = None
-    if ('Volume' not in df.columns or df['Volume'].isnull().all()) and etf_ticker:
-        start_date = df['Date'].min()
-        end_date = df['Date'].max()
+    # ---------------------------------------------------------------
+    # Momentum signal
+    momentum = df["Close"] / df["Close"].shift(lookback) - 1
+    x = (50 * momentum).clip(-700, 700)
+    momentum_signal = 1 / (1 + np.exp(-x))
+
+    # ---------------------------------------------------------------
+    # Volatility scaling
+    vol = df["returns"].rolling(lookback).std()
+    target_vol = 0.02
+    volatility_signal = np.where(vol > target_vol, target_vol / vol, 1.0)
+    volatility_signal = np.minimum(volatility_signal, 1)
+
+    # ---------------------------------------------------------------
+    # Liquidity signal
+    if "Volume" in df.columns and not df["Volume"].isnull().all():
+        avg_volume = df["Volume"].rolling(lookback).mean()
+        ratio = df["Volume"] / avg_volume
+    elif etf_ticker:
+        start_date = df["Date"].min()
+        end_date = df["Date"].max()
         etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
-        if 'Date' in etf_data.columns:
-            etf_data['Date'] = pd.to_datetime(etf_data['Date'])
-            etf_data.sort_values('Date', inplace=True)
+        etf_data["Date"] = pd.to_datetime(etf_data["Date"])
+        etf_data.sort_values("Date", inplace=True)
+        etf_series = (
+            etf_data.set_index("Date")["Volume"].reindex(df["Date"], method="ffill")
+        )
+        etf_series.index = df.index
+        avg_volume = etf_series.rolling(lookback).mean()
+        ratio = etf_series / avg_volume
+    else:
+        ratio = pd.Series(1.0, index=df.index)
 
-    allocations: list[float] = []
+    ratio = ratio.fillna(1)
+    liquidity_signal = np.where(ratio >= 0.8, ratio, ratio / 0.8)
+    liquidity_signal = np.minimum(liquidity_signal, 1)
 
-    for i in range(n):
-        if i < lookback:
-            allocations.append(1.0)
-            continue
+    # ---------------------------------------------------------------
+    # Combine signals
+    allocation = momentum_signal * volatility_signal * liquidity_signal
+    allocation = allocation.clip(0, 1)
 
-        window = df.iloc[i - lookback : i + 1]
+    # Set the initial lookback period to fully invested
+    allocation.iloc[:lookback] = 1.0
 
-        # ---- Momentum Signal ----
-        momentum = window['Close'].iloc[-1] / window['Close'].iloc[0] - 1
-        # Use a numerically stable logistic transformation. Without clipping,
-        # ``math.exp`` may overflow when ``momentum`` has a very large magnitude.
-        x = 50 * momentum
-        x = max(min(x, 700), -700)  # avoid overflow for extreme momentum values
-        momentum_signal = 1 / (1 + math.exp(-x))
-
-        # ---- Volatility Signal ----
-        vol = window['returns'].iloc[-lookback:].std()
-        target_vol = 0.02
-        volatility_signal = target_vol / vol if vol > target_vol else 1
-        volatility_signal = min(volatility_signal, 1)
-
-        # ---- Liquidity Signal ----
-        liquidity_signal = 1
-        if 'Volume' in df.columns and not window['Volume'].isnull().all():
-            recent_volume = window['Volume'].iloc[-1]
-            avg_volume = window['Volume'].iloc[-lookback:].mean()
-            liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-            liquidity_signal = (
-                liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-            )
-            liquidity_signal = min(liquidity_signal, 1)
-        elif etf_data is not None:
-            sub = etf_data[etf_data['Date'] <= window['Date'].iloc[-1]].tail(lookback + 1)
-            if not sub.empty and 'Volume' in sub.columns and not sub['Volume'].isnull().all():
-                recent_volume = sub['Volume'].iloc[-1]
-                avg_volume = sub['Volume'].iloc[-lookback:].mean()
-                liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-                liquidity_signal = (
-                    liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-                )
-                liquidity_signal = min(liquidity_signal, 1)
-
-        allocation = momentum_signal * volatility_signal * liquidity_signal
-        allocation = max(0, min(allocation, 1))
-        allocations.append(allocation)
-
-    return pd.Series(allocations, index=df.index)
+    return allocation
 
 
 def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
-    """Vectorised market timing strategy using price and macro signals."""
+    """Market timing strategy using price and macroeconomic signals."""
+
     lookback = 20
 
     df = df.copy()
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values('Date', inplace=True)
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
+
+    if "returns" not in df.columns:
+        df["returns"] = df["Close"].pct_change().fillna(0)
 
     macro_df = macro_df.copy()
-    macro_df['date'] = pd.to_datetime(macro_df['date'])
-    macro_df.sort_values(by='date', inplace=True)
-    
-    allocations: list[float] = []
-    n = len(df)
-    
-    for i in range(n):
-        # Until we have enough data, default to fully long
-        if i < lookback:
-            allocations.append(1.0)
-        else:
-            window = df.iloc[i - lookback : i + 1].copy()
-            # Ensure we have daily returns computed
-            window['returns'] = window['Close'].pct_change().fillna(0)
-            
-            # --- Momentum Signal ---
-            # Use the change from the first day in the window to the current day
-            momentum = window['Close'].iloc[-1] / window['Close'].iloc[0] - 1
-            momentum_signal = math.tanh(10 * momentum)  # scales to roughly -1 to 1
-            
-            # --- Macro Signal ---
-            # Get macro data up to the current date
-            current_date = window['Date'].iloc[-1]
-            macro_values = macro_df[macro_df['date'] <= current_date]['value']
-            if macro_values.empty or len(macro_values) < lookback:
-                macro_signal = 0.0  # neutral if not enough macro data
-            else:
-                current_macro = macro_values.iloc[-1]
-                # Use the last 'lookback' days from the macro series
-                macro_window = macro_df[macro_df['date'] <= current_date].tail(lookback)
-                rolling_avg = macro_window['value'].mean()
-                rolling_std = macro_window['value'].std()
-                macro_z = (rolling_avg - current_macro) / (rolling_std if rolling_std != 0 else 1)
-                macro_signal = math.tanh(macro_z)
-            
-            # --- Combine Signals ---
-            combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
-            
-            # --- Volatility Scaling ---
-            vol = window['returns'].std()
-            target_vol = 0.02  # Target daily volatility
-            vol_scaling = target_vol / vol if vol > target_vol else 1
-            
-            # --- Liquidity Signal ---
-            if 'Volume' in window.columns and not window['Volume'].isnull().all():
-                recent_volume = window['Volume'].iloc[-1]
-                avg_volume = window['Volume'].mean()
-                liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-                liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-                liquidity_signal = min(liquidity_signal, 1)
-            else:
-                liquidity_signal = 1
-            
-            # --- Final Allocation ---
-            allocation = combined_signal * vol_scaling * liquidity_signal
-            # Clamp allocation between -1 (fully short) and 1 (fully long)
-            allocation = max(-1, min(allocation, 1))
-            allocations.append(allocation)
-            
-    # Return a series that aligns with the input DataFrame's index
-    return pd.Series(allocations, index=df.index)
+    macro_df["date"] = pd.to_datetime(macro_df["date"])
+    macro_df.sort_values("date", inplace=True)
+
+    # ---------------------------------------------------------------
+    # Momentum signal
+    momentum = df["Close"] / df["Close"].shift(lookback) - 1
+    momentum_signal = np.tanh(10 * momentum)
+
+    # ---------------------------------------------------------------
+    # Macro signal
+    macro_series = macro_df.set_index("date")["value"].reindex(df["Date"], method="ffill")
+    macro_series.index = df.index
+    rolling_avg = macro_series.rolling(lookback).mean()
+    rolling_std = macro_series.rolling(lookback).std().replace(0, 1)
+    macro_z = (rolling_avg - macro_series) / rolling_std
+    macro_signal = np.tanh(macro_z).fillna(0)
+
+    combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
+
+    # ---------------------------------------------------------------
+    # Volatility scaling
+    vol = df["returns"].rolling(lookback).std()
+    target_vol = 0.02
+    vol_scaling = np.where(vol > target_vol, target_vol / vol, 1.0)
+
+    # ---------------------------------------------------------------
+    # Liquidity signal
+    if "Volume" in df.columns and not df["Volume"].isnull().all():
+        avg_volume = df["Volume"].rolling(lookback).mean()
+        liquidity_ratio = df["Volume"] / avg_volume
+    else:
+        liquidity_ratio = pd.Series(1.0, index=df.index)
+
+    liquidity_ratio = liquidity_ratio.fillna(1)
+    liquidity_signal = np.where(liquidity_ratio >= 0.8, liquidity_ratio, liquidity_ratio / 0.8)
+    liquidity_signal = np.minimum(liquidity_signal, 1)
+
+    allocation = combined_signal * vol_scaling * liquidity_signal
+    allocation = allocation.clip(-1, 1)
+
+    allocation.iloc[:lookback] = 1.0
+
+    return allocation
 
 
 
