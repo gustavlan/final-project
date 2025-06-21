@@ -105,63 +105,90 @@ def simple_backtest(
 
 def dynamic_market_timing_strategy_advanced(
     df: pd.DataFrame, etf_ticker: Optional[str] = None
-) -> float:
-    """Calculate an allocation weight using momentum, volatility and liquidity.
+) -> pd.Series:
+    """Generate a series of allocation weights based on price and liquidity signals.
+
+    This function now iterates over the provided DataFrame and returns a
+    ``pd.Series`` aligned with ``df`` so that it can be directly consumed by
+    ``simple_backtest``.
 
     Parameters
     ----------
     df : pd.DataFrame
-        DataFrame containing at least ``Date``, ``Close`` and ``returns`` columns.
+        DataFrame containing ``Date`` and ``Close`` columns. ``returns`` should
+        already be calculated on the frame (``simple_backtest`` ensures this).
     etf_ticker : str, optional
         ETF symbol to fetch volume data from if index volume is missing.
 
     Returns
     -------
-    float
-        Allocation weight between 0 and 1.
+    pd.Series
+        Allocation weights between 0 and 1 for each row of ``df``.
     """
+
     lookback = 20
-    if len(df) < lookback + 1:
-        return 1  # Not enough data; default to fully invested.
-    
-    # ---- Momentum Signal ----
-    momentum = (df['Close'].iloc[-1] / df['Close'].iloc[-(lookback + 1)] - 1)
-    momentum_signal = 1 / (1 + math.exp(-50 * momentum))
-    
-    # ---- Volatility Signal ----
-    vol = df['returns'].iloc[-lookback:].std()
-    target_vol = 0.02  # Target daily volatility (e.g., 2%)
-    volatility_signal = target_vol / vol if vol > target_vol else 1
-    volatility_signal = min(volatility_signal, 1)
-    
-    # ---- Liquidity Signal ----
-    if 'Volume' in df.columns and not df['Volume'].isnull().all():
-        recent_volume = df['Volume'].iloc[-1]
-        avg_volume = df['Volume'].iloc[-lookback:].mean()
-        liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-        liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
-        liquidity_signal = min(liquidity_signal, 1)
-    else:
-        # If index volume data is missing and an ETF ticker is provided, fetch ETF data.
-        if etf_ticker:
-            start_date = df['Date'].min()
-            end_date = df['Date'].max()
-            etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
-            if 'Volume' in etf_data.columns and not etf_data['Volume'].isnull().all():
-                sub_df = etf_data[(etf_data['Date'] >= start_date) & (etf_data['Date'] <= end_date)]
-                recent_volume = sub_df['Volume'].iloc[-1]
-                avg_volume = sub_df['Volume'].iloc[-lookback:].mean()
+
+    df = df.copy()
+    df['Date'] = pd.to_datetime(df['Date'])
+    df.sort_values('Date', inplace=True)
+
+    n = len(df)
+
+    # Pre-fetch ETF volume data if required
+    etf_data = None
+    if ('Volume' not in df.columns or df['Volume'].isnull().all()) and etf_ticker:
+        start_date = df['Date'].min()
+        end_date = df['Date'].max()
+        etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
+        if 'Date' in etf_data.columns:
+            etf_data['Date'] = pd.to_datetime(etf_data['Date'])
+            etf_data.sort_values('Date', inplace=True)
+
+    allocations: list[float] = []
+
+    for i in range(n):
+        if i < lookback:
+            allocations.append(1.0)
+            continue
+
+        window = df.iloc[i - lookback : i + 1]
+
+        # ---- Momentum Signal ----
+        momentum = window['Close'].iloc[-1] / window['Close'].iloc[0] - 1
+        momentum_signal = 1 / (1 + math.exp(-50 * momentum))
+
+        # ---- Volatility Signal ----
+        vol = window['returns'].iloc[-lookback:].std()
+        target_vol = 0.02
+        volatility_signal = target_vol / vol if vol > target_vol else 1
+        volatility_signal = min(volatility_signal, 1)
+
+        # ---- Liquidity Signal ----
+        liquidity_signal = 1
+        if 'Volume' in df.columns and not window['Volume'].isnull().all():
+            recent_volume = window['Volume'].iloc[-1]
+            avg_volume = window['Volume'].iloc[-lookback:].mean()
+            liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+            liquidity_signal = (
+                liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
+            )
+            liquidity_signal = min(liquidity_signal, 1)
+        elif etf_data is not None:
+            sub = etf_data[etf_data['Date'] <= window['Date'].iloc[-1]].tail(lookback + 1)
+            if not sub.empty and 'Volume' in sub.columns and not sub['Volume'].isnull().all():
+                recent_volume = sub['Volume'].iloc[-1]
+                avg_volume = sub['Volume'].iloc[-lookback:].mean()
                 liquidity_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
-                liquidity_signal = liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
+                liquidity_signal = (
+                    liquidity_ratio if liquidity_ratio >= 0.8 else liquidity_ratio / 0.8
+                )
                 liquidity_signal = min(liquidity_signal, 1)
-            else:
-                liquidity_signal = 1
-        else:
-            liquidity_signal = 1
-    
-    allocation = momentum_signal * volatility_signal * liquidity_signal
-    allocation = max(0, min(allocation, 1))
-    return allocation
+
+        allocation = momentum_signal * volatility_signal * liquidity_signal
+        allocation = max(0, min(allocation, 1))
+        allocations.append(allocation)
+
+    return pd.Series(allocations, index=df.index)
 
 
 def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
