@@ -1,5 +1,8 @@
 import os
 import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import pandas as pd
 import numpy as np
 import pytest
@@ -10,7 +13,6 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_advanced,
     _etf_volume_cache,
 )
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 def test_simple_backtest():
@@ -76,3 +78,35 @@ def test_etf_volume_caching(monkeypatch):
 
     assert call_count['n'] == 1
     assert ('SPY', str(df['Date'].min()), str(df['Date'].max())) in _etf_volume_cache
+
+
+def test_dynamic_advanced_returns_series():
+    """Advanced strategy should return a Series of allocations."""
+    dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": np.linspace(100, 130, 30), "Volume": 1000})
+    df['returns'] = df['Close'].pct_change().fillna(0)
+
+    alloc = dynamic_market_timing_strategy_advanced(df)
+
+    assert isinstance(alloc, pd.Series)
+    assert len(alloc) == len(df)
+    assert (alloc.iloc[:20] == 1).all()
+    assert (alloc >= 0).all() and (alloc <= 1).all()
+
+
+def test_simple_backtest_with_dynamic_series():
+    """Ensure simple_backtest works when the strategy returns a Series."""
+    dates = pd.date_range(start="2021-01-01", periods=40, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": np.linspace(100, 140, 40), "Volume": 1000})
+
+    cumulative_return, alpha, cumulative_series = simple_backtest(df.copy(), dynamic_market_timing_strategy_advanced)
+
+    df['returns'] = df['Close'].pct_change().fillna(0)
+    alloc = dynamic_market_timing_strategy_advanced(df)
+    expected_series = (df['returns'] * alloc + 1).cumprod()
+
+    pd.testing.assert_series_equal(
+        cumulative_series.reset_index(drop=True),
+        expected_series.reset_index(drop=True),
+        check_names=False,
+    )
