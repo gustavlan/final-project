@@ -1,26 +1,41 @@
 """Helpers for fetching price and macroeconomic data."""
 
+import logging
 import pandas as pd
 import yfinance as yf
 from fredapi import Fred
 
+logger = logging.getLogger(__name__)
+
 def get_yahoo_data(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
     """Download historical price data from Yahoo Finance."""
-
-    data = yf.download(symbol, start=start_date, end=end_date, group_by="column")
+    try:
+        data = yf.download(symbol, start=start_date, end=end_date, group_by="column")
+    except Exception as exc:
+        logger.error("Failed to download data from Yahoo Finance for %s: %s", symbol, exc)
+        raise RuntimeError(f"Yahoo Finance download failed for {symbol}") from exc
     return data
 
 def get_fred_data(
     api_key: str, series_id: str, start_date: str, end_date: str
 ) -> pd.DataFrame:
     """Retrieve a FRED series as a DataFrame with ``date`` and ``value``."""
-
     fred = Fred(api_key=api_key)
-    data = fred.get_series(
-        series_id, observation_start=start_date, observation_end=end_date
-    )
+    try:
+        data = fred.get_series(
+            series_id, observation_start=start_date, observation_end=end_date
+        )
+    except Exception as exc:
+        logger.error(
+            "Failed to retrieve FRED series %s between %s and %s: %s",
+            series_id,
+            start_date,
+            end_date,
+            exc,
+        )
+        raise RuntimeError(f"FRED data retrieval failed for series {series_id}") from exc
     df = (
-        pd.DataFrame(data, columns=["value"]) 
+        pd.DataFrame(data, columns=["value"])
         .reset_index()
         .rename(columns={"index": "date"})
     )
