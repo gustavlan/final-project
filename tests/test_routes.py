@@ -25,17 +25,7 @@ def test_home_route(create_client):
     assert response.status_code == 200
     assert b'Asset Allocation Backtester' in response.data  # Check for known content
 
-def test_backtest_route_simple(create_client, monkeypatch):
-    # Create a dummy version of get_yahoo_data to return a controlled DataFrame
-    import pandas as pd
-    def dummy_get_yahoo_data(symbol, start_date, end_date):
-        data = {
-            'Date': pd.date_range(start=start_date, periods=5, freq='D'),
-            'Close': [100, 102, 101, 103, 105]
-        }
-        return pd.DataFrame(data)
-    
-    monkeypatch.setattr('utils.data_retrieval.get_yahoo_data', dummy_get_yahoo_data)
+def test_backtest_route_simple(create_client, mock_yfinance, mock_fred):
     
     # Post form data to the /backtest route with the naive strategy.
     client = create_client()

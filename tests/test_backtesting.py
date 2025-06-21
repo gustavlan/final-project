@@ -54,29 +54,21 @@ def test_dynamic_market_timing_strategy_macro_basic():
     assert (alloc <= 1).all() and (alloc >= -1).all()
 
     
-def test_etf_volume_caching(monkeypatch):
+def test_etf_volume_caching(mock_yfinance):
     """Ensure ETF data is fetched only once for repeated calls."""
-    import pandas as pd
 
     # Create minimal price data without a Volume column to trigger ETF fetch
     dates = pd.date_range(start='2022-01-01', periods=30, freq='D')
     df = pd.DataFrame({'Date': dates, 'Close': range(100, 130)})
     df['returns'] = df['Close'].pct_change().fillna(0)
 
-    call_count = {'n': 0}
-
-    def dummy_download(ticker, start, end, group_by='column'):
-        call_count['n'] += 1
-        vol_df = pd.DataFrame({'Volume': [100000] * len(dates)}, index=dates)
-        vol_df.index.name = 'Date'
-        return vol_df
-
-    monkeypatch.setattr('utils.backtesting.yf.download', dummy_download)
+    # Clear cache to ensure clean test state
+    _etf_volume_cache.clear()
 
     dynamic_market_timing_strategy_advanced(df.copy(), etf_ticker='SPY')
     dynamic_market_timing_strategy_advanced(df.copy(), etf_ticker='SPY')
 
-    assert call_count['n'] == 1
+    assert mock_yfinance['n'] == 1
     assert ('SPY', str(df['Date'].min()), str(df['Date'].max())) in _etf_volume_cache
 
 
