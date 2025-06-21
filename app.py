@@ -228,7 +228,12 @@ def register_routes(app):
             strategy_daily_returns.rename('strategy'),
             naive_returns.rename('naive')
         ], axis=1).dropna()
-        beta = aligned['strategy'].cov(aligned['naive']) / aligned['naive'].var()
+        naive_var = aligned['naive'].var()
+        beta = (
+            aligned['strategy'].cov(aligned['naive']) / naive_var
+            if naive_var > 1e-8
+            else 0
+        )
         jensens_alpha = strategy_avg_excess - beta * naive_avg_excess
         strategy_treynor = strategy_avg_excess / (beta if beta != 0 else 1)
         strategy_beta = beta
