@@ -244,10 +244,22 @@ def register_routes(app):
         strategy_treynor = strategy_avg_excess / (beta if beta != 0 else 1)
         strategy_beta = beta
 
-        # Persist backtest results to the database (using dummy strategy and index IDs)
+        # Persist backtest results with the actual strategy and index IDs
+        strategy = Strategy.query.filter_by(name=strategy_method).first()
+        if not strategy:
+            strategy = Strategy(name=strategy_method)
+            db.session.add(strategy)
+            db.session.commit()
+
+        index = Index.query.filter_by(symbol=symbol).first()
+        if not index:
+            index = Index(name=symbol, symbol=symbol)
+            db.session.add(index)
+            db.session.commit()
+
         result = BacktestResult(
-            strategy_id=1,
-            index_id=1,
+            strategy_id=strategy.id,
+            index_id=index.id,
             start_date=pd.to_datetime(start_date),
             end_date=pd.to_datetime(end_date),
             returns=strategy_return,
