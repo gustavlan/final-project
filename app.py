@@ -145,9 +145,15 @@ def register_routes(app):
         naive_series = (naive_returns + 1).cumprod()
         # Check if we have data; if not, raise error.
         if naive_series.empty:
-            raise ValueError("No price data available for symbol " + symbol + " in the requested date range " + start_date + " to " + end_date)
+            raise ValueError(
+                "No price data available for symbol "
+                + symbol
+                + " in the requested date range "
+                + start_date
+                + " to "
+                + end_date
+            )
         naive_return = float(naive_series.iloc[-1] - 1)
-        naive_alpha = float(naive_return - naive_returns.mean())
     
         # Determine ETF ticker for liquidity proxy (if available)
         etf_ticker = ETF_MAPPING.get(symbol, None)
@@ -155,15 +161,15 @@ def register_routes(app):
         # Choose strategy based on user selection:
         if strategy_method == 'naive':
             # Use naive buy & hold (fully invested)
-            strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
+            strategy_return, strategy_series = naive_return, naive_series
             strategy_daily_returns = naive_returns
+            strategy_alpha = 0.0
         elif strategy_method == 'advanced':
             # Advanced market timing strategy using index data signals (plus ETF liquidity)
-            strategy_return, strategy_alpha, strategy_series = simple_backtest(
+            strategy_return, _, strategy_series = simple_backtest(
                 prices_df, lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
             )
             strategy_return = float(strategy_return)
-            strategy_alpha = float(strategy_alpha)
             strategy_daily_returns = strategy_series.pct_change().fillna(0)
         elif strategy_method == 'macro':
             # Advanced market timing strategy incorporating macro data along with index signals
@@ -172,12 +178,11 @@ def register_routes(app):
                 return "FRED API key not set", 500
             default_series_id = "DGS3MO"  # FRED series (e.g., 3-Month Treasury Rate)
             macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
-            strategy_return, strategy_alpha, strategy_series = simple_backtest(
+            strategy_return, _, strategy_series = simple_backtest(
                 prices_df,
                 lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
             )
             strategy_return = float(strategy_return)
-            strategy_alpha = float(strategy_alpha)
             strategy_daily_returns = strategy_series.pct_change().fillna(0)
         elif strategy_method == 'macro_only':
             # Strategy using only macro signals as a signal (allocations from -1 to 1)
@@ -190,12 +195,12 @@ def register_routes(app):
             prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
             strategy_series = (prices_df['returns'] * allocation + 1).cumprod()
             strategy_return = float(strategy_series.iloc[-1] - 1)
-            strategy_alpha = float(strategy_return - prices_df['returns'].mean())
             strategy_daily_returns = prices_df['returns'] * allocation
         else:
             # Default to naive if unrecognized
-            strategy_return, strategy_alpha, strategy_series = naive_return, naive_alpha, naive_series
+            strategy_return, strategy_series = naive_return, naive_series
             strategy_daily_returns = naive_returns
+            strategy_alpha = 0.0
 
         metrics = compute_metrics(
             prices_df,
@@ -271,14 +276,12 @@ def register_routes(app):
             naive_sharpe=naive_sharpe,
             naive_sortino=naive_sortino,
             naive_beta=1,
-            naive_jensens_alpha=0,
             naive_treynor=naive_avg_excess,
             naive_vol_excess=naive_vol_excess,
             naive_drawdown=naive_drawdown,
             strategy_sharpe=strategy_sharpe,
             strategy_sortino=strategy_sortino,
             strategy_beta=strategy_beta,
-            strategy_jensens_alpha=jensens_alpha,
             strategy_treynor=strategy_treynor,
             strategy_vol_excess=strategy_vol_excess,
             strategy_drawdown=strategy_drawdown,
