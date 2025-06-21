@@ -37,13 +37,13 @@ def test_backtest_route_simple(create_client, monkeypatch):
     
     monkeypatch.setattr('utils.data_retrieval.get_yahoo_data', dummy_get_yahoo_data)
     
-    # Post form data to the /backtest route with 'simple' backtest method.
+    # Post form data to the /backtest route with the naive strategy.
     client = create_client()
     response = client.post('/backtest', data={
         'symbol': 'DUMMY',
         'start_date': '2021-01-01',
         'end_date': '2021-01-05',
-        'backtest_method': 'simple'
+        'strategy_method': 'naive'
     })
     # Check that the response is OK and contains expected elements.
     assert response.status_code == 200
