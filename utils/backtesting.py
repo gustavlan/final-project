@@ -155,7 +155,11 @@ def dynamic_market_timing_strategy_advanced(
 
         # ---- Momentum Signal ----
         momentum = window['Close'].iloc[-1] / window['Close'].iloc[0] - 1
-        momentum_signal = 1 / (1 + math.exp(-50 * momentum))
+        # Use a numerically stable logistic transformation. Without clipping,
+        # ``math.exp`` may overflow when ``momentum`` has a very large magnitude.
+        x = 50 * momentum
+        x = max(min(x, 700), -700)  # avoid overflow for extreme momentum values
+        momentum_signal = 1 / (1 + math.exp(-x))
 
         # ---- Volatility Signal ----
         vol = window['returns'].iloc[-lookback:].std()
