@@ -1,8 +1,6 @@
-import os
-import sys
-import pytest
+"""Integration tests for the Flask routes."""
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import pytest
 from app import create_app
 from config import TestingConfig
 from extensions import db
