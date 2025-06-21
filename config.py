@@ -26,6 +26,14 @@ class Config:
     # FRED API Key (optional, can be set in environment)
     FRED_API_KEY = os.environ.get('FRED_API_KEY')
 
+    @classmethod
+    def validate(cls):
+        """Ensure a SECRET_KEY is provided for non-testing configs."""
+        if not cls.TESTING and not cls.SECRET_KEY:
+            raise RuntimeError(
+                "SECRET_KEY environment variable must be set for production and development"
+            )
+
 class DevelopmentConfig(Config):
     DEBUG = True
 
