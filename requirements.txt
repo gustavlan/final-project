@@ -14,12 +14,9 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.2
 multitasking==0.0.11
-narwhals==1.43.1
 numpy==2.2.3
 packaging==25.0
 pandas==2.2.3
-peewee==3.18.1
-platformdirs==4.3.8
 plotly==6.0.0
 pluggy==1.6.0
 pytest==8.3.4
