@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request
 from extensions import db
-from config import DevelopmentConfig
+from config import DevelopmentConfig, TestingConfig, ProductionConfig
 import click
 import pandas as pd
 import numpy as np
@@ -10,7 +10,18 @@ from logging.handlers import RotatingFileHandler
 from utils.data_retrieval import get_risk_free_rate
 
 
-def create_app(config_class=DevelopmentConfig):
+def create_app(config_class=None):
+    """Create and configure the Flask application."""
+
+    if config_class is None:
+        env = os.getenv("FLASK_ENV", "development").lower()
+        if env == "production":
+            config_class = ProductionConfig
+        elif env == "testing":
+            config_class = TestingConfig
+        else:
+            config_class = DevelopmentConfig
+
     app = Flask(__name__)
     app.config.from_object(config_class)
     db.init_app(app)
@@ -278,4 +289,5 @@ def register_routes(app):
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Rely on the FLASK_ENV environment variable for debug configuration
+    app.run()
