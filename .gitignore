@@ -22,3 +22,4 @@ dist/
 # IDE and Editor files
 .vscode/
 .idea/
+final_project.db

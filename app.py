@@ -8,6 +8,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 from utils.data_retrieval import get_risk_free_rate
+from utils.validation import validate_date_range
 
 
 def create_app(config_class=None):
@@ -99,6 +100,10 @@ def register_routes(app):
         symbol = request.form.get('symbol')
         start_date = request.form.get('start_date')
         end_date = request.form.get('end_date')
+        try:
+            validate_date_range(start_date, end_date)
+        except ValueError as exc:
+            return str(exc), 400
         # Read the strategy selection; valid options: 'naive', 'advanced', 'macro', 'macro_only'
         strategy_method = request.form.get('strategy_method', 'naive')
 
