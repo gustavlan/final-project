@@ -73,7 +73,7 @@ def get_risk_free_rate(api_key: str, start_date: str, end_date: str) -> pd.DataF
     df = df.reindex(full_range)
     
     # Forward fill missing daily_rate values.
-    df['daily_rate'] = df['daily_rate'].fillna(method='ffill')
+    df['daily_rate'] = df['daily_rate'].ffill()
     df = df.reset_index().rename(columns={'index': 'Date'})
 
     return df[['Date', 'daily_rate']]

@@ -201,7 +201,7 @@ def register_routes(app):
         prices_df.sort_values(by='Date', inplace=True)  # ensure sorted
         risk_free_df.sort_values(by='Date', inplace=True)  # ensure sorted
         merged_df = pd.merge_asof(prices_df, risk_free_df, on='Date', direction='backward')
-        merged_df['risk_free'] = merged_df['daily_rate'].fillna(method='ffill')
+        merged_df['risk_free'] = merged_df['daily_rate'].ffill()
 
         # Naive strategy metrics
         merged_df['naive_excess'] = naive_returns - merged_df['risk_free']  # excess returns
