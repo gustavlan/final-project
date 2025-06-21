@@ -197,7 +197,7 @@ In addition to return calculations, the backtester computes several risk-adjuste
    | `LOG_TO_STDOUT` | If set, logs are written to STDOUT instead of a file.          | not set                      |
    | `LOG_LEVEL`     | Logging verbosity level.                                       | `INFO`                       |
    | `FRED_API_KEY`  | API key for retrieving macro data from FRED (optional).        | not set                      |
-   | `FLASK_ENV`     | Flask environment (`development`, `production`, or `testing`). | `development`               |
+   | `FLASK_ENV`     | Selects the configuration: use `development` for local debugging (default), `production` for deployment, or `testing` during tests. | `development`               |
 
    Example of exporting these variables in your shell:
 
@@ -206,16 +206,16 @@ In addition to return calculations, the backtester computes several risk-adjuste
    # Optional settings
    export DATABASE_URL="sqlite:///custom.db"
    export FRED_API_KEY="your_fred_api_key_here"
-   | `FLASK_ENV`     | Flask environment (`development`, `production`, or `testing`). | `development`               |
    ```
 
 ## Usage
 
 1. **Run the Application:**
 
-   Ensure the `SECRET_KEY` environment variable is defined. Configure the
-   environment with `FLASK_ENV=development` for local debugging or
-   `FLASK_ENV=production` for deployment, then start the server:
+   Ensure the `SECRET_KEY` environment variable is defined. Use
+   `FLASK_ENV=development` for local debugging or `FLASK_ENV=production`
+   for deployment. If not specified, the app defaults to the development
+   configuration. Then start the server:
 
    ```bash
    flask run
