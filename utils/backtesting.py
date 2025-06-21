@@ -237,6 +237,107 @@ def dynamic_market_timing_strategy_advanced(
     return pd.Series(allocations, index=df.index)
 
 
+def compute_metrics(
+    prices_df: pd.DataFrame,
+    naive_returns: pd.Series,
+    strategy_daily_returns: pd.Series,
+    naive_series: pd.Series,
+    strategy_series: pd.Series,
+    start_date: str,
+    end_date: str,
+    fred_api_key: Optional[str] = None,
+) -> dict:
+    """Calculate performance metrics for naive and active strategies.
+
+    Parameters
+    ----------
+    prices_df : pd.DataFrame
+        DataFrame containing a ``Date`` column and daily ``returns`` for the
+        benchmark index.
+    naive_returns : pd.Series
+        Daily returns of the benchmark strategy.
+    strategy_daily_returns : pd.Series
+        Daily returns of the active strategy.
+    naive_series : pd.Series
+        Cumulative return series for the benchmark strategy.
+    strategy_series : pd.Series
+        Cumulative return series for the active strategy.
+    start_date, end_date : str
+        Date range used to fetch the risk‑free rate if ``fred_api_key`` is
+        provided.
+    fred_api_key : str, optional
+        API key for FRED. If not supplied, a zero risk‑free rate is assumed.
+
+    Returns
+    -------
+    dict
+        Dictionary containing metrics for both strategies.
+    """
+
+    if fred_api_key:
+        risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+    else:
+        date_range = pd.date_range(start=start_date, end=end_date, freq="D")
+        risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})
+
+    prices_df = prices_df.copy()
+    prices_df.sort_values(by="Date", inplace=True)
+    risk_free_df.sort_values(by="Date", inplace=True)
+    merged_df = pd.merge_asof(prices_df, risk_free_df, on="Date", direction="backward")
+    merged_df["risk_free"] = merged_df["daily_rate"].ffill()
+
+    # --- Naive strategy metrics ---
+    merged_df["naive_excess"] = naive_returns - merged_df["risk_free"]
+    naive_vol_excess = np.std(merged_df["naive_excess"]) * np.sqrt(252)
+    naive_avg_excess = np.mean(merged_df["naive_excess"]) * 252
+    naive_sharpe = naive_avg_excess / (naive_vol_excess if naive_vol_excess != 0 else 1)
+    naive_downside = (
+        np.std(merged_df["naive_excess"][merged_df["naive_excess"] < 0]) * np.sqrt(252)
+    )
+    naive_sortino = naive_avg_excess / (naive_downside if naive_downside != 0 else 1)
+    naive_drawdown = (naive_series / naive_series.cummax() - 1).min()
+
+    # --- Active strategy metrics ---
+    merged_df["strategy_excess"] = strategy_daily_returns - merged_df["risk_free"]
+    strategy_vol_excess = np.std(merged_df["strategy_excess"]) * np.sqrt(252)
+    strategy_avg_excess = np.mean(merged_df["strategy_excess"]) * 252
+    strategy_sharpe = strategy_avg_excess / (
+        strategy_vol_excess if strategy_vol_excess != 0 else 1
+    )
+    strategy_downside = (
+        np.std(merged_df["strategy_excess"][merged_df["strategy_excess"] < 0]) * np.sqrt(252)
+    )
+    strategy_sortino = strategy_avg_excess / (
+        strategy_downside if strategy_downside != 0 else 1
+    )
+    strategy_drawdown = (strategy_series / strategy_series.cummax() - 1).min()
+
+    aligned = pd.concat(
+        [strategy_daily_returns.rename("strategy"), naive_returns.rename("naive")],
+        axis=1,
+    ).dropna()
+    naive_var = aligned["naive"].var()
+    beta = aligned["strategy"].cov(aligned["naive"]) / naive_var if naive_var > 1e-8 else 0
+    jensens_alpha = strategy_avg_excess - beta * naive_avg_excess
+    strategy_treynor = strategy_avg_excess / (beta if beta != 0 else 1)
+
+    return {
+        "naive_sharpe": naive_sharpe,
+        "naive_sortino": naive_sortino,
+        "naive_vol_excess": naive_vol_excess,
+        "naive_drawdown": naive_drawdown,
+        "naive_avg_excess": naive_avg_excess,
+        "strategy_sharpe": strategy_sharpe,
+        "strategy_sortino": strategy_sortino,
+        "strategy_beta": beta,
+        "strategy_jensens_alpha": jensens_alpha,
+        "strategy_treynor": strategy_treynor,
+        "strategy_vol_excess": strategy_vol_excess,
+        "strategy_drawdown": strategy_drawdown,
+        "strategy_avg_excess": strategy_avg_excess,
+    }
+
+
 def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     """Vectorised market timing strategy using price and macro signals."""
     lookback = 20
