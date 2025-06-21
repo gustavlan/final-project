@@ -1,5 +1,9 @@
+import os
 import pandas as pd
 import pytest
+
+# Ensure SECRET_KEY is set for tests that import the app module
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 @pytest.fixture
 def mock_yfinance(monkeypatch):
