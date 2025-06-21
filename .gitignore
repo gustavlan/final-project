@@ -19,6 +19,11 @@ dist/
 *.log
 *.tmp
 
+# Local databases and logs
+final_project.db
+instance/final_project.db
+logs/
+
 # IDE and Editor files
 .vscode/
 .idea/
