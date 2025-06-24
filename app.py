@@ -223,6 +223,10 @@ def register_routes(app):
         strategy_sortino = metrics["strategy_sortino"]
         strategy_beta = metrics["strategy_beta"]
         jensens_alpha = metrics["strategy_jensens_alpha"]
+        # Jensen's alpha for the benchmark is always zero
+        naive_alpha = 0.0
+        # Use Jensen's alpha as the strategy alpha metric
+        strategy_alpha = jensens_alpha
         strategy_treynor = metrics["strategy_treynor"]
         strategy_drawdown = metrics["strategy_drawdown"]
 
