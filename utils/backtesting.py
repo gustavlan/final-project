@@ -295,7 +295,10 @@ def compute_metrics(
     naive_downside = (
         np.std(merged_df["naive_excess"][merged_df["naive_excess"] < 0]) * np.sqrt(252)
     )
-    naive_sortino = naive_avg_excess / (naive_downside if naive_downside != 0 else 1)
+    if np.isnan(naive_downside) or naive_downside == 0:
+        naive_sortino = naive_avg_excess
+    else:
+        naive_sortino = naive_avg_excess / naive_downside
     naive_drawdown = (naive_series / naive_series.cummax() - 1).min()
 
     # --- Active strategy metrics ---
@@ -308,9 +311,10 @@ def compute_metrics(
     strategy_downside = (
         np.std(merged_df["strategy_excess"][merged_df["strategy_excess"] < 0]) * np.sqrt(252)
     )
-    strategy_sortino = strategy_avg_excess / (
-        strategy_downside if strategy_downside != 0 else 1
-    )
+    if np.isnan(strategy_downside) or strategy_downside == 0:
+        strategy_sortino = strategy_avg_excess
+    else:
+        strategy_sortino = strategy_avg_excess / strategy_downside
     strategy_drawdown = (strategy_series / strategy_series.cummax() - 1).min()
 
     aligned = pd.concat(
