@@ -187,12 +187,23 @@ def dynamic_market_timing_strategy_advanced(
     df["Date"] = pd.to_datetime(df["Date"])
     df.sort_values("Date", inplace=True)
 
+    if "Close" in df.columns:
+        price_col = "Close"
+    elif "Adj Close" in df.columns:
+        price_col = "Adj Close"
+    elif "close" in df.columns:
+        price_col = "close"
+    elif "adj close" in df.columns:
+        price_col = "adj close"
+    else:
+        raise ValueError("No valid price column found in the price data.")
+
     if "returns" not in df.columns:
-        df["returns"] = df["Close"].pct_change().fillna(0)
+        df["returns"] = df[price_col].pct_change().fillna(0)
 
     # ---------------------------------------------------------------
     # Momentum signal
-    momentum = df["Close"] / df["Close"].shift(lookback) - 1
+    momentum = df[price_col] / df[price_col].shift(lookback) - 1
     x = (50 * momentum).clip(-700, 700)
     momentum_signal = 1 / (1 + np.exp(-x))
 
@@ -352,8 +363,19 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     df["Date"] = pd.to_datetime(df["Date"])
     df.sort_values("Date", inplace=True)
 
+    if "Close" in df.columns:
+        price_col = "Close"
+    elif "Adj Close" in df.columns:
+        price_col = "Adj Close"
+    elif "close" in df.columns:
+        price_col = "close"
+    elif "adj close" in df.columns:
+        price_col = "adj close"
+    else:
+        raise ValueError("No valid price column found in the price data.")
+
     if "returns" not in df.columns:
-        df["returns"] = df["Close"].pct_change().fillna(0)
+        df["returns"] = df[price_col].pct_change().fillna(0)
 
     macro_df = macro_df.copy()
     macro_df["date"] = pd.to_datetime(macro_df["date"])
@@ -361,7 +383,7 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
 
     # ---------------------------------------------------------------
     # Momentum signal
-    momentum = df["Close"] / df["Close"].shift(lookback) - 1
+    momentum = df[price_col] / df[price_col].shift(lookback) - 1
     momentum_signal = np.tanh(10 * momentum)
 
     # ---------------------------------------------------------------
