@@ -8,6 +8,7 @@ import math
 import pandas as pd
 import numpy as np
 import yfinance as yf  # For ETF liquidity data fetching
+from utils.data_retrieval import get_risk_free_rate
 
 # In-memory LRU cache for ETF volume data keyed by (ticker, start_date, end_date)
 _ETF_VOLUME_CACHE_MAX_SIZE = 10
