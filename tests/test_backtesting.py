@@ -9,6 +9,7 @@ from utils.backtesting import (
     full_invested_strategy,
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
+    dynamic_macro_strategy,
     _etf_volume_cache,
     _enforce_cache_limit,
     _ETF_VOLUME_CACHE_MAX_SIZE,
@@ -133,3 +134,16 @@ def test_momentum_signal_no_overflow():
     down["returns"] = down["Close"].pct_change().fillna(0)
     alloc_down = dynamic_market_timing_strategy_advanced(down)
     assert np.isfinite(alloc_down.iloc[-1])
+
+
+def test_macro_allocation_positive_trend():
+    """Macro-only strategy should allocate positively when macro trend is up."""
+    dates = pd.date_range(start="2021-01-01", periods=40, freq="D")
+    prices = pd.DataFrame({"Date": dates, "Close": np.linspace(100, 140, 40)})
+    macro = pd.DataFrame({"date": dates, "value": np.linspace(1, 2, 40)})
+
+    alloc = dynamic_macro_strategy(prices, macro)
+
+    # After the lookback period, the allocation should be positive for an
+    # upward-trending macro series.
+    assert alloc.iloc[-1] > 0
