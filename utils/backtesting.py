@@ -365,7 +365,7 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     macro_series.index = df.index
     rolling_avg = macro_series.rolling(lookback).mean()
     rolling_std = macro_series.rolling(lookback).std().replace(0, 1)
-    macro_z = (rolling_avg - macro_series) / rolling_std
+    macro_z = (macro_series - rolling_avg) / rolling_std
     macro_signal = np.tanh(macro_z).fillna(0)
 
     combined_signal = 0.5 * momentum_signal + 0.5 * macro_signal
@@ -444,7 +444,7 @@ def dynamic_macro_strategy(
                 macro_window = macro_df[macro_df['date'] <= current_date].tail(lookback)
                 rolling_avg = macro_window['value'].mean()
                 rolling_std = macro_window['value'].std()
-                macro_z = (rolling_avg - current_macro) / (rolling_std if rolling_std != 0 else 1)
+                macro_z = (current_macro - rolling_avg) / (rolling_std if rolling_std != 0 else 1)
                 allocation = math.tanh(macro_z)
                 allocation = max(-1, min(allocation, 1))
             allocations.append(allocation)
