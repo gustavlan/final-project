@@ -294,6 +294,12 @@ def compute_metrics(
 
     prices_df = prices_df.copy()
     prices_df.sort_values(by="Date", inplace=True)
+    # Reorder the return series to match the sorted prices_df index
+    naive_returns = naive_returns.loc[prices_df.index].reset_index(drop=True)
+    strategy_daily_returns = strategy_daily_returns.loc[prices_df.index].reset_index(drop=True)
+    naive_series = naive_series.loc[prices_df.index].reset_index(drop=True)
+    strategy_series = strategy_series.loc[prices_df.index].reset_index(drop=True)
+    prices_df.reset_index(drop=True, inplace=True)
     risk_free_df.sort_values(by="Date", inplace=True)
     merged_df = pd.merge_asof(prices_df, risk_free_df, on="Date", direction="backward")
     merged_df["risk_free"] = merged_df["daily_rate"].ffill()
