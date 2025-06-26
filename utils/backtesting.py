@@ -211,7 +211,11 @@ def dynamic_market_timing_strategy_advanced(
     # Volatility scaling
     vol = df["returns"].rolling(lookback).std()
     target_vol = 0.02
-    volatility_signal = np.where(vol > target_vol, target_vol / vol, 1.0)
+    # Avoid divide-by-zero warnings by applying the ratio only where vol is
+    # greater than the target. Remaining values stay at ``1``.
+    volatility_signal = np.ones_like(vol, dtype=float)
+    mask = vol > target_vol
+    volatility_signal[mask] = target_vol / vol[mask]
     volatility_signal = np.minimum(volatility_signal, 1)
 
     # ---------------------------------------------------------------
@@ -401,7 +405,9 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     # Volatility scaling
     vol = df["returns"].rolling(lookback).std()
     target_vol = 0.02
-    vol_scaling = np.where(vol > target_vol, target_vol / vol, 1.0)
+    vol_scaling = np.ones_like(vol, dtype=float)
+    mask = vol > target_vol
+    vol_scaling[mask] = target_vol / vol[mask]
 
     # ---------------------------------------------------------------
     # Liquidity signal

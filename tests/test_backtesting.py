@@ -147,3 +147,16 @@ def test_macro_allocation_positive_trend():
     # After the lookback period, the allocation should be positive for an
     # upward-trending macro series.
     assert alloc.iloc[-1] > 0
+
+
+def test_zero_volatility_allocation():
+    """Strategy should not raise errors when volatility is zero."""
+    dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": 100, "Volume": 1000})
+    df["returns"] = df["Close"].pct_change().fillna(0)
+
+    alloc = dynamic_market_timing_strategy_advanced(df)
+
+    assert np.all(np.isfinite(alloc))
+    # After the lookback period the allocation should equal the momentum signal
+    assert alloc.iloc[20] == pytest.approx(0.5, abs=1e-6)
