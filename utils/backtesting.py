@@ -2,6 +2,7 @@
 
 from typing import Callable, Optional, Tuple, Union
 from collections import OrderedDict
+from threading import Lock
 import os
 
 import math
@@ -13,17 +14,23 @@ from utils.data_retrieval import get_risk_free_rate
 # In-memory LRU cache for ETF volume data keyed by (ticker, start_date, end_date)
 _ETF_VOLUME_CACHE_MAX_SIZE = 10
 _etf_volume_cache: "OrderedDict[tuple[str, str, str], pd.DataFrame]" = OrderedDict()
+_cache_lock = Lock()
 
 
 def _enforce_cache_limit(cache_dir: Optional[str] = None) -> None:
     """Evict the least recently used entries when the cache exceeds the limit."""
 
-    while len(_etf_volume_cache) > _ETF_VOLUME_CACHE_MAX_SIZE:
-        old_key, old_df = _etf_volume_cache.popitem(last=False)
+    while True:
+        with _cache_lock:
+            if len(_etf_volume_cache) <= _ETF_VOLUME_CACHE_MAX_SIZE:
+                break
+            old_key, old_df = _etf_volume_cache.popitem(last=False)
+
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)
             filename = f"{old_key[0]}_{old_key[1]}_{old_key[2]}.pkl"
             old_df.to_pickle(os.path.join(cache_dir, filename))
+
     if cache_dir:
         _cleanup_disk_cache(cache_dir)
 
@@ -61,10 +68,10 @@ def get_cached_etf_data(
 
     key = (etf_ticker, str(start_date), str(end_date))
 
-    if key in _etf_volume_cache:
-        # Mark as recently used
-        _etf_volume_cache.move_to_end(key)
-        return _etf_volume_cache[key]
+    with _cache_lock:
+        if key in _etf_volume_cache:
+            _etf_volume_cache.move_to_end(key)
+            return _etf_volume_cache[key]
 
     if cache_dir is not None:
         os.makedirs(cache_dir, exist_ok=True)
@@ -72,8 +79,9 @@ def get_cached_etf_data(
         path = os.path.join(cache_dir, filename)
         if os.path.exists(path):
             data = pd.read_pickle(path)
-            _etf_volume_cache[key] = data
-            _etf_volume_cache.move_to_end(key)
+            with _cache_lock:
+                _etf_volume_cache[key] = data
+                _etf_volume_cache.move_to_end(key)
             _enforce_cache_limit(cache_dir)
             return data
 
@@ -88,8 +96,9 @@ def get_cached_etf_data(
 
         data.columns = [flatten(col) for col in data.columns]
 
-    _etf_volume_cache[key] = data
-    _etf_volume_cache.move_to_end(key)
+    with _cache_lock:
+        _etf_volume_cache[key] = data
+        _etf_volume_cache.move_to_end(key)
     _enforce_cache_limit(cache_dir)
 
     return data
