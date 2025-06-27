@@ -223,6 +223,8 @@ def register_routes(app):
         strategy_sortino = metrics["strategy_sortino"]
         strategy_beta = metrics["strategy_beta"]
         jensens_alpha = metrics["strategy_jensens_alpha"]
+        naive_beta = metrics["naive_beta"]
+        naive_treynor = metrics["naive_treynor"]
         # Jensen's alpha for the benchmark is always zero
         naive_alpha = 0.0
         # Use Jensen's alpha as the strategy alpha metric
@@ -279,8 +281,8 @@ def register_routes(app):
             plot_html=plot_html,
             naive_sharpe=naive_sharpe,
             naive_sortino=naive_sortino,
-            naive_beta=1,
-            naive_treynor=naive_avg_excess,
+            naive_beta=naive_beta,
+            naive_treynor=naive_treynor,
             naive_vol_excess=naive_vol_excess,
             naive_drawdown=naive_drawdown,
             strategy_sharpe=strategy_sharpe,
