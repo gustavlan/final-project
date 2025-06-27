@@ -473,31 +473,29 @@ def dynamic_macro_strategy(
 
     lookback = 20
     df = df.copy()
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values(by='Date', inplace=True)
-    
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
+
     macro_df = macro_df.copy()
-    macro_df['date'] = pd.to_datetime(macro_df['date'])
-    macro_df.sort_values(by='date', inplace=True)
-    
-    allocations: list[float] = []
-    n = len(df)
-    
-    for i in range(n):
-        if i < lookback:
-            allocations.append(1.0)
-        else:
-            current_date = df['Date'].iloc[i]
-            macro_values = macro_df[macro_df['date'] <= current_date]['value']
-            if macro_values.empty or len(macro_values) < lookback:
-                allocation = 1.0
-            else:
-                current_macro = macro_values.iloc[-1]
-                macro_window = macro_df[macro_df['date'] <= current_date].tail(lookback)
-                rolling_avg = macro_window['value'].mean()
-                rolling_std = macro_window['value'].std()
-                macro_z = (current_macro - rolling_avg) / (rolling_std if rolling_std != 0 else 1)
-                allocation = math.tanh(macro_z)
-                allocation = max(-1, min(allocation, 1))
-            allocations.append(allocation)
-    return pd.Series(allocations, index=df.index)
+    macro_df["date"] = pd.to_datetime(macro_df["date"])
+    macro_df.sort_values("date", inplace=True)
+
+    macro_series = (
+        macro_df.set_index("date")["value"].reindex(df["Date"], method="ffill")
+    )
+    macro_series.index = df.index
+
+    rolling_avg = macro_series.rolling(lookback).mean()
+    rolling_std = macro_series.rolling(lookback).std().replace(0, 1)
+    macro_z = (macro_series - rolling_avg) / rolling_std
+    allocation = np.tanh(macro_z)
+
+    # If there are fewer than ``lookback`` macro observations, remain fully
+    # invested to mirror the behaviour of the previous loop implementation.
+    available_macro = macro_series.notna().cumsum() >= lookback
+    allocation = allocation.where(available_macro, 1.0)
+
+    allocation = allocation.clip(-1, 1)
+    allocation.iloc[:lookback] = 1.0
+
+    return allocation
