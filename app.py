@@ -202,6 +202,10 @@ def register_routes(app):
             strategy_daily_returns = naive_returns
             strategy_alpha = 0.0
 
+        fred_api_key = os.getenv("FRED_API_KEY")
+        risk_free_env = os.getenv("RISK_FREE_RATE")
+        risk_free_rate = float(risk_free_env) if risk_free_env is not None else None
+
         metrics = compute_metrics(
             prices_df,
             naive_returns,
@@ -210,7 +214,8 @@ def register_routes(app):
             strategy_series,
             start_date,
             end_date,
-            os.getenv("FRED_API_KEY"),
+            fred_api_key,
+            risk_free_rate=risk_free_rate,
         )
         naive_vol_excess = metrics["naive_vol_excess"]
         naive_avg_excess = metrics["naive_avg_excess"]

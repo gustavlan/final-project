@@ -20,6 +20,7 @@ def test_compute_metrics_basic():
         strategy_series,
         "2021-01-01",
         "2021-01-05",
+        risk_free_rate=0,
     )
 
     assert np.isclose(metrics["strategy_beta"], 2.0)
@@ -44,6 +45,7 @@ def test_compute_metrics_zero_variance():
         strategy_series,
         "2021-01-01",
         "2021-01-05",
+        risk_free_rate=0,
     )
 
     assert metrics["strategy_beta"] == 0
@@ -65,6 +67,7 @@ def test_sortino_no_negative_returns():
         strategy_series,
         "2021-01-01",
         "2021-01-05",
+        risk_free_rate=0,
     )
 
     assert not np.isnan(metrics["naive_sortino"])
@@ -90,6 +93,7 @@ def test_compute_metrics_handles_unsorted_data():
         strategy_series,
         "2021-01-01",
         "2021-01-05",
+        risk_free_rate=0,
     )
 
     assert np.isclose(metrics["strategy_beta"], 2.0)
