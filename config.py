@@ -25,6 +25,12 @@ class Config:
     
     # FRED API Key (optional, can be set in environment)
     FRED_API_KEY = os.environ.get('FRED_API_KEY')
+    # Static daily risk-free rate (optional, used if FRED_API_KEY is not set)
+    RISK_FREE_RATE = (
+        float(os.environ.get('RISK_FREE_RATE'))
+        if os.environ.get('RISK_FREE_RATE') is not None
+        else None
+    )
 
     @classmethod
     def validate(cls):

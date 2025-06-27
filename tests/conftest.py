@@ -4,6 +4,7 @@ import pytest
 
 # Ensure SECRET_KEY is set for tests that import the app module
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("RISK_FREE_RATE", "0")
 
 @pytest.fixture
 def mock_yfinance(monkeypatch):

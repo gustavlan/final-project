@@ -199,6 +199,7 @@ In addition to return calculations, the backtester computes several risk-adjuste
    | `LOG_TO_STDOUT` | If set, logs are written to STDOUT instead of a file.          | not set                      |
    | `LOG_LEVEL`     | Logging verbosity level.                                       | `INFO`                       |
    | `FRED_API_KEY`  | API key for retrieving macro data from FRED (optional).        | not set                      |
+   | `RISK_FREE_RATE`| Daily risk-free rate used when `FRED_API_KEY` is unset.        | not set                      |
    | `FLASK_ENV`     | Selects the configuration: use `development` for local debugging (default), `production` for deployment, or `testing` during tests. | `development`               |
 
    Example of exporting these variables in your shell:
@@ -208,7 +209,13 @@ In addition to return calculations, the backtester computes several risk-adjuste
    # Optional settings
    export DATABASE_URL="sqlite:///custom.db"
    export FRED_API_KEY="your_fred_api_key_here"
+   # Optional fallback if FRED_API_KEY is not provided
+   export RISK_FREE_RATE="0.0001"
    ```
+
+   The backtesting metrics need a risk-free rate. Provide `FRED_API_KEY` to
+   download the 3‑month Treasury yield or define `RISK_FREE_RATE` with a static
+   daily rate. If neither is set, metric computation will fail.
 
 ## Usage
 

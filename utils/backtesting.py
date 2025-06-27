@@ -262,6 +262,7 @@ def compute_metrics(
     start_date: str,
     end_date: str,
     fred_api_key: Optional[str] = None,
+    risk_free_rate: Optional[float] = None,
 ) -> dict:
     """Calculate performance metrics for naive and active strategies.
 
@@ -282,7 +283,10 @@ def compute_metrics(
         Date range used to fetch the risk‑free rate if ``fred_api_key`` is
         provided.
     fred_api_key : str, optional
-        API key for FRED. If not supplied, a zero risk‑free rate is assumed.
+        API key for FRED used to download the 3‑month Treasury yield from FRED.
+    risk_free_rate : float, optional
+        Daily risk‑free rate to use when ``fred_api_key`` is not supplied.
+        One of ``fred_api_key`` or ``risk_free_rate`` must be provided.
 
     Returns
     -------
@@ -298,8 +302,12 @@ def compute_metrics(
             date_range = pd.date_range(start=start_date, end=end_date, freq="D")
             risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})
     else:
+        if risk_free_rate is None:
+            raise ValueError(
+                "Either fred_api_key or risk_free_rate must be provided"
+            )
         date_range = pd.date_range(start=start_date, end=end_date, freq="D")
-        risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})
+        risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": risk_free_rate})
 
     prices_df = prices_df.copy()
     prices_df.sort_values(by="Date", inplace=True)
