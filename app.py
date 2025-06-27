@@ -10,6 +10,29 @@ from logging.handlers import RotatingFileHandler
 from utils.data_retrieval import get_risk_free_rate
 from utils.validation import validate_date_range
 
+CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
+
+
+def _cache_path(prefix: str, symbol: str, start: str, end: str) -> str:
+    """Return a cache file path for the given parameters."""
+    filename = f"{prefix}_{symbol}_{start}_{end}.pkl"
+    return os.path.join(CACHE_DIR, filename)
+
+
+def _load_cache(prefix: str, symbol: str, start: str, end: str):
+    """Load cached DataFrame if available."""
+    path = _cache_path(prefix, symbol, start, end)
+    if os.path.exists(path):
+        return pd.read_pickle(path)
+    return None
+
+
+def _save_cache(df: pd.DataFrame, prefix: str, symbol: str, start: str, end: str) -> None:
+    """Save DataFrame to cache."""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    path = _cache_path(prefix, symbol, start, end)
+    df.to_pickle(path)
+
 
 def create_app(config_class=None):
     """Create and configure the Flask application."""
@@ -109,8 +132,20 @@ def register_routes(app):
         # Read the strategy selection; valid options: 'naive', 'advanced', 'macro', 'macro_only'
         strategy_method = request.form.get('strategy_method', 'naive')
 
-        # Retrieve price data for the index
-        prices_df = get_yahoo_data(symbol, start_date, end_date)
+        # Retrieve price data for the index with basic caching
+        try:
+            prices_df = get_yahoo_data(symbol, start_date, end_date)
+            _save_cache(prices_df, "yahoo", symbol, start_date, end_date)
+        except RuntimeError as exc:
+            app.logger.error("Yahoo data fetch failed: %s", exc)
+            cached = _load_cache("yahoo", symbol, start_date, end_date)
+            if cached is None:
+                return (
+                    "Failed to fetch data from Yahoo Finance and no cached data is available.",
+                    502,
+                )
+            prices_df = cached
+
         prices_df.reset_index(inplace=True)
         prices_df['Date'] = pd.to_datetime(prices_df['Date'])
     
@@ -177,7 +212,20 @@ def register_routes(app):
             if not fred_api_key:
                 return "FRED API key not set", 500
             default_series_id = "DGS3MO"  # FRED series (e.g., 3-Month Treasury Rate)
-            macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
+            try:
+                macro_df = get_fred_data(
+                    fred_api_key, default_series_id, start_date, end_date
+                )
+                _save_cache(macro_df, "fred", default_series_id, start_date, end_date)
+            except RuntimeError as exc:
+                app.logger.error("FRED data fetch failed: %s", exc)
+                cached = _load_cache("fred", default_series_id, start_date, end_date)
+                if cached is None:
+                    return (
+                        "Failed to fetch macro data from FRED and no cached data is available.",
+                        502,
+                    )
+                macro_df = cached
             strategy_return, _, strategy_series = simple_backtest(
                 prices_df,
                 lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
@@ -190,7 +238,20 @@ def register_routes(app):
             if not fred_api_key:
                 return "FRED API key not set", 500
             default_series_id = "DGS3MO"
-            macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
+            try:
+                macro_df = get_fred_data(
+                    fred_api_key, default_series_id, start_date, end_date
+                )
+                _save_cache(macro_df, "fred", default_series_id, start_date, end_date)
+            except RuntimeError as exc:
+                app.logger.error("FRED data fetch failed: %s", exc)
+                cached = _load_cache("fred", default_series_id, start_date, end_date)
+                if cached is None:
+                    return (
+                        "Failed to fetch macro data from FRED and no cached data is available.",
+                        502,
+                    )
+                macro_df = cached
             allocation = dynamic_macro_strategy(prices_df, macro_df, etf_ticker)
             prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
             strategy_series = (prices_df['returns'] * allocation + 1).cumprod()

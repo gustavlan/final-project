@@ -1,5 +1,6 @@
 """Integration tests for the Flask routes."""
 
+import os
 import pytest
 from app import create_app
 from config import TestingConfig
@@ -64,3 +65,34 @@ def test_beta_zero_flat_prices(create_client, mock_yfinance, mock_fred):
     assert len(beta_values) >= 2
     # Second beta corresponds to the strategy metrics
     assert beta_values[1] == 0.0
+
+
+def test_yahoo_error_returns_message(create_client, mock_yfinance_error, mock_fred):
+    client = create_client()
+    response = client.post(
+        '/backtest',
+        data={
+            'symbol': 'DUMMY',
+            'start_date': '2021-01-01',
+            'end_date': '2021-01-05',
+            'strategy_method': 'naive',
+        },
+    )
+    assert response.status_code == 502
+    assert b'Yahoo Finance' in response.data
+
+
+def test_fred_error_returns_message(create_client, mock_yfinance, mock_fred_error):
+    client = create_client()
+    os.environ["FRED_API_KEY"] = "dummy"
+    response = client.post(
+        '/backtest',
+        data={
+            'symbol': 'DUMMY',
+            'start_date': '2021-01-01',
+            'end_date': '2021-01-05',
+            'strategy_method': 'macro',
+        },
+    )
+    assert response.status_code == 502
+    assert b'FRED' in response.data

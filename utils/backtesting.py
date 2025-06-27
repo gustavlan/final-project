@@ -291,7 +291,12 @@ def compute_metrics(
     """
 
     if fred_api_key:
-        risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+        try:
+            risk_free_df = get_risk_free_rate(fred_api_key, start_date, end_date)
+        except RuntimeError:
+            # Fallback to zero risk-free rate on failure
+            date_range = pd.date_range(start=start_date, end=end_date, freq="D")
+            risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})
     else:
         date_range = pd.date_range(start=start_date, end=end_date, freq="D")
         risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})

@@ -24,6 +24,9 @@ final_project.db
 instance/final_project.db
 logs/
 
+# Cache directory used during tests
+cache/
+
 # IDE and Editor files
 .vscode/
 .idea/
