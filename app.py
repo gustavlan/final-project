@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request
-from extensions import db
+from extensions import db, csrf
 from config import DevelopmentConfig, TestingConfig, ProductionConfig
 import click
 import pandas as pd
@@ -27,6 +27,7 @@ def create_app(config_class=None):
     app.config.from_object(config_class)
     config_class.validate()
     db.init_app(app)
+    csrf.init_app(app)
 
     # --- Logging Setup ---
     if not app.debug and not app.config['LOG_TO_STDOUT']:
