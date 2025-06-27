@@ -47,6 +47,7 @@ class TestingConfig(Config):
     TESTING = True
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'test-secret-key'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    WTF_CSRF_ENABLED = False
 
 class ProductionConfig(Config):
     DEBUG = False
