@@ -153,7 +153,12 @@ def register_routes(app):
         def flatten_col(col):
             return col[1] if isinstance(col, tuple) and len(col) > 1 else col
         prices_df.columns = [flatten_col(col) for col in prices_df.columns]
-        app.logger.info("Flattened Price DataFrame columns: " + str(prices_df.columns.tolist()))
+        cols_list = prices_df.columns.tolist()
+        if len(cols_list) > 5:
+            display_cols = cols_list[:5] + ["..."]
+        else:
+            display_cols = cols_list
+        app.logger.info("Flattened DataFrame columns (truncated): %s", display_cols)
     
         # If columns appear as ['', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E'], rename manually:
         cols = prices_df.columns.tolist()
