@@ -181,13 +181,24 @@ def simple_backtest(
 
 
 def dynamic_market_timing_strategy_advanced(
-    df: pd.DataFrame, etf_ticker: Optional[str] = None
+    df: pd.DataFrame,
+    etf_ticker: Optional[str] = None,
+    cache_dir: Optional[str] = None,
 ) -> pd.Series:
     """Generate allocation weights using price momentum, volatility and liquidity.
 
     This vectorised version uses rolling windows instead of explicit loops.
     ``df`` should contain ``Date``, ``Close`` and optionally ``Volume`` columns
     with daily ``returns`` already calculated.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Price data including a ``Date`` column.
+    etf_ticker : str, optional
+        Ticker symbol used to fetch ETF volume when ``Volume`` is missing.
+    cache_dir : str, optional
+        Directory path to persist ETF volume data between runs.
     """
 
     lookback = 20
@@ -235,7 +246,12 @@ def dynamic_market_timing_strategy_advanced(
     elif etf_ticker:
         start_date = df["Date"].min()
         end_date = df["Date"].max()
-        etf_data = get_cached_etf_data(etf_ticker, start_date, end_date)
+        etf_data = get_cached_etf_data(
+            etf_ticker,
+            start_date,
+            end_date,
+            cache_dir=cache_dir,
+        )
         etf_data["Date"] = pd.to_datetime(etf_data["Date"])
         etf_data.sort_values("Date", inplace=True)
         etf_series = (

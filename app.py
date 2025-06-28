@@ -208,7 +208,10 @@ def register_routes(app):
         elif strategy_method == 'advanced':
             # Advanced market timing strategy using index data signals (plus ETF liquidity)
             strategy_return, _, strategy_series = simple_backtest(
-                prices_df, lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
+                prices_df,
+                lambda df: dynamic_market_timing_strategy_advanced(
+                    df, etf_ticker, cache_dir=CACHE_DIR
+                ),
             )
             strategy_return = float(strategy_return)
             strategy_daily_returns = strategy_series.pct_change().fillna(0)
