@@ -104,7 +104,7 @@ def register_routes(app):
     }
 
     # Import models after initializing the app
-    from models import Index, HistoricalPrice, MacroData, Strategy, BacktestResult
+    from models import Index, Strategy, BacktestResult
     from utils.data_retrieval import get_yahoo_data, get_fred_data
     from utils.backtesting import (
         simple_backtest,

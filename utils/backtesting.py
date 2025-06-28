@@ -4,8 +4,6 @@ from typing import Callable, Optional, Tuple, Union
 from collections import OrderedDict
 from threading import Lock
 import os
-
-import math
 import pandas as pd
 import numpy as np
 import yfinance as yf  # For ETF liquidity data fetching
@@ -39,11 +37,7 @@ def _cleanup_disk_cache(cache_dir: str) -> None:
     """Remove oldest cache files on disk when exceeding the cache limit."""
 
     try:
-        files = [
-            os.path.join(cache_dir, f)
-            for f in os.listdir(cache_dir)
-            if f.endswith(".pkl")
-        ]
+        files = [os.path.join(cache_dir, f) for f in os.listdir(cache_dir) if f.endswith(".pkl")]
     except FileNotFoundError:
         return
 
@@ -85,7 +79,7 @@ def get_cached_etf_data(
             _enforce_cache_limit(cache_dir)
             return data
 
-    data = yf.download(etf_ticker, start=start_date, end=end_date, group_by='column')
+    data = yf.download(etf_ticker, start=start_date, end=end_date, group_by="column")
     data.reset_index(inplace=True)
 
     # Flatten MultiIndex columns if present
@@ -121,6 +115,7 @@ def full_invested_strategy(df: pd.DataFrame) -> float:
     # Return 1 for every row so broadcasting works in ``simple_backtest``.
     return 1.0
 
+
 def simple_backtest(
     prices_df: pd.DataFrame,
     allocation_strategy: Callable[[pd.DataFrame], Union[float, pd.Series]],
@@ -143,40 +138,40 @@ def simple_backtest(
         contains the cumulative strategy returns over time.
     """
     # Ensure a proper Date column exists and sort by date
-    if 'Date' not in prices_df.columns:
+    if "Date" not in prices_df.columns:
         prices_df.reset_index(inplace=True)
-    prices_df['Date'] = pd.to_datetime(prices_df['Date'])
-    prices_df.sort_values(by='Date', inplace=True)
-    
+    prices_df["Date"] = pd.to_datetime(prices_df["Date"])
+    prices_df.sort_values(by="Date", inplace=True)
+
     # Determine the correct price column
-    if 'Close' in prices_df.columns:
-        price_col = 'Close'
-    elif 'Adj Close' in prices_df.columns:
-        price_col = 'Adj Close'
-    elif 'close' in prices_df.columns:
-        price_col = 'close'
-    elif 'adj close' in prices_df.columns:
-        price_col = 'adj close'
+    if "Close" in prices_df.columns:
+        price_col = "Close"
+    elif "Adj Close" in prices_df.columns:
+        price_col = "Adj Close"
+    elif "close" in prices_df.columns:
+        price_col = "close"
+    elif "adj close" in prices_df.columns:
+        price_col = "adj close"
     else:
         raise ValueError("No valid price column found in the price data.")
-    
+
     # Drop rows with missing prices
     prices_df = prices_df.dropna(subset=[price_col])
-    
+
     # Calculate daily returns and fill NaN for first row
-    prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
-    
+    prices_df["returns"] = prices_df[price_col].pct_change().fillna(0)
+
     # Apply the allocation strategy to get a series of daily allocations
     allocation_series = allocation_strategy(prices_df)
-    prices_df['strategy_returns'] = prices_df['returns'] * allocation_series
-    
-    cumulative_series = (prices_df['strategy_returns'] + 1).cumprod()
+    prices_df["strategy_returns"] = prices_df["returns"] * allocation_series
+
+    cumulative_series = (prices_df["strategy_returns"] + 1).cumprod()
     if cumulative_series.empty:
         raise ValueError("Cumulative series is empty. Check your data and date range.")
-    
+
     cumulative_return = cumulative_series.iloc[-1] - 1
-    alpha = cumulative_return - prices_df['returns'].mean()
-    
+    alpha = cumulative_return - prices_df["returns"].mean()
+
     return cumulative_return, alpha, cumulative_series
 
 
@@ -254,9 +249,7 @@ def dynamic_market_timing_strategy_advanced(
         )
         etf_data["Date"] = pd.to_datetime(etf_data["Date"])
         etf_data.sort_values("Date", inplace=True)
-        etf_series = (
-            etf_data.set_index("Date")["Volume"].reindex(df["Date"], method="ffill")
-        )
+        etf_series = etf_data.set_index("Date")["Volume"].reindex(df["Date"], method="ffill")
         etf_series.index = df.index
         avg_volume = etf_series.rolling(lookback).mean()
         ratio = etf_series / avg_volume
@@ -328,9 +321,7 @@ def compute_metrics(
             risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": 0})
     else:
         if risk_free_rate is None:
-            raise ValueError(
-                "Either fred_api_key or risk_free_rate must be provided"
-            )
+            raise ValueError("Either fred_api_key or risk_free_rate must be provided")
         date_range = pd.date_range(start=start_date, end=end_date, freq="D")
         risk_free_df = pd.DataFrame({"Date": date_range, "daily_rate": risk_free_rate})
 
@@ -351,9 +342,7 @@ def compute_metrics(
     naive_vol_excess = np.std(merged_df["naive_excess"]) * np.sqrt(252)
     naive_avg_excess = np.mean(merged_df["naive_excess"]) * 252
     naive_sharpe = naive_avg_excess / (naive_vol_excess if naive_vol_excess != 0 else 1)
-    naive_downside = (
-        np.std(merged_df["naive_excess"][merged_df["naive_excess"] < 0]) * np.sqrt(252)
-    )
+    naive_downside = np.std(merged_df["naive_excess"][merged_df["naive_excess"] < 0]) * np.sqrt(252)
     if np.isnan(naive_downside) or naive_downside == 0:
         naive_sortino = naive_avg_excess
     else:
@@ -364,12 +353,10 @@ def compute_metrics(
     merged_df["strategy_excess"] = strategy_daily_returns - merged_df["risk_free"]
     strategy_vol_excess = np.std(merged_df["strategy_excess"]) * np.sqrt(252)
     strategy_avg_excess = np.mean(merged_df["strategy_excess"]) * 252
-    strategy_sharpe = strategy_avg_excess / (
-        strategy_vol_excess if strategy_vol_excess != 0 else 1
-    )
-    strategy_downside = (
-        np.std(merged_df["strategy_excess"][merged_df["strategy_excess"] < 0]) * np.sqrt(252)
-    )
+    strategy_sharpe = strategy_avg_excess / (strategy_vol_excess if strategy_vol_excess != 0 else 1)
+    strategy_downside = np.std(
+        merged_df["strategy_excess"][merged_df["strategy_excess"] < 0]
+    ) * np.sqrt(252)
     if np.isnan(strategy_downside) or strategy_downside == 0:
         strategy_sortino = strategy_avg_excess
     else:
@@ -477,7 +464,6 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     return allocation
 
 
-
 def dynamic_macro_strategy(
     df: pd.DataFrame,
     macro_df: pd.DataFrame,
@@ -509,9 +495,7 @@ def dynamic_macro_strategy(
     macro_df["date"] = pd.to_datetime(macro_df["date"])
     macro_df.sort_values("date", inplace=True)
 
-    macro_series = (
-        macro_df.set_index("date")["value"].reindex(df["Date"], method="ffill")
-    )
+    macro_series = macro_df.set_index("date")["value"].reindex(df["Date"], method="ffill")
     macro_series.index = df.index
 
     rolling_avg = macro_series.rolling(lookback).mean()
