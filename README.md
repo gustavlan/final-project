@@ -167,8 +167,8 @@ In addition to return calculations, the backtester computes several risk-adjuste
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/yourusername/cs50_final_project.git
-   cd cs50_final_project
+   git clone https://github.com/gustavlan/final-project.git
+   cd final-project
    ```
 
 2. **Set Up a Virtual Environment:**
@@ -274,7 +274,7 @@ This will execute all tests located in the `tests/` directory.
 ## Directory Structure
 
 ```
-cs50_final_project/
+final-project/
 ├── app.py                # Main Flask application
 ├── config.py             # Configuration settings
 ├── extensions.py         # SQLAlchemy instance
