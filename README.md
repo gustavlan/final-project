@@ -1,4 +1,5 @@
 # CS50 Final Project: Asset Allocation Backtester
+![coverage](coverage.svg)
 
 #### Description:
 
