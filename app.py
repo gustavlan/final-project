@@ -3,11 +3,10 @@ from extensions import db, csrf
 from config import DevelopmentConfig, TestingConfig, ProductionConfig
 import click
 import pandas as pd
-import numpy as np
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from utils.data_retrieval import get_risk_free_rate
+
 from utils.validation import validate_date_range
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
@@ -53,24 +52,24 @@ def create_app(config_class=None):
     csrf.init_app(app)
 
     # --- Logging Setup ---
-    if not app.debug and not app.config['LOG_TO_STDOUT']:
-        log_dir = os.path.dirname(app.config['LOG_FILE'])
+    if not app.debug and not app.config["LOG_TO_STDOUT"]:
+        log_dir = os.path.dirname(app.config["LOG_FILE"])
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        file_handler = RotatingFileHandler(app.config['LOG_FILE'], maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
+        file_handler = RotatingFileHandler(app.config["LOG_FILE"], maxBytes=10240, backupCount=10)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]")
+        )
+        file_handler.setLevel(getattr(logging, app.config["LOG_LEVEL"].upper()))
         app.logger.addHandler(file_handler)
 
-    if app.config['LOG_TO_STDOUT']:
+    if app.config["LOG_TO_STDOUT"]:
         stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
+        stream_handler.setLevel(getattr(logging, app.config["LOG_LEVEL"].upper()))
         app.logger.addHandler(stream_handler)
 
-    app.logger.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
-    app.logger.info('Final Project startup')
+    app.logger.setLevel(getattr(logging, app.config["LOG_LEVEL"].upper()))
+    app.logger.info("Final Project startup")
 
     with app.app_context():
         db.create_all()
@@ -82,26 +81,26 @@ def create_app(config_class=None):
 
 
 def register_cli(app):
-    @app.cli.command('init-db')
+    @app.cli.command("init-db")
     def init_db_command():
         """Initialize the database."""
         db.create_all()
-        click.echo('Initialized the database.')
+        click.echo("Initialized the database.")
 
 
 def register_routes(app):
     # Define a mapping from index tickers to ETF tickers.
     ETF_MAPPING = {
-        '^GSPC': 'SPY',
-        '^DJI':  'DIA',
-        '^IXIC': 'QQQ',
-        '^FTSE': 'ISF',
-        '^N225': 'EWJ',
-        '^HSI':  '2800.HK',
-        '^GDAXI': 'DAXY',
-        '^FCHI': 'EWU',
-        '^STOXX50E': 'FEZ',
-        '^BSESN': 'INDA'
+        "^GSPC": "SPY",
+        "^DJI": "DIA",
+        "^IXIC": "QQQ",
+        "^FTSE": "ISF",
+        "^N225": "EWJ",
+        "^HSI": "2800.HK",
+        "^GDAXI": "DAXY",
+        "^FCHI": "EWU",
+        "^STOXX50E": "FEZ",
+        "^BSESN": "INDA",
     }
 
     # Import models after initializing the app
@@ -116,22 +115,22 @@ def register_routes(app):
     )
     from utils.visualizations import create_return_plot
 
-    @app.route('/')
+    @app.route("/")
     def home():
         app.logger.info("Home page accessed")
-        return render_template('index.html')
+        return render_template("index.html")
 
-    @app.route('/backtest', methods=['POST'])
+    @app.route("/backtest", methods=["POST"])
     def backtest():
-        symbol = request.form.get('symbol')
-        start_date = request.form.get('start_date')
-        end_date = request.form.get('end_date')
+        symbol = request.form.get("symbol")
+        start_date = request.form.get("start_date")
+        end_date = request.form.get("end_date")
         try:
             validate_date_range(start_date, end_date)
         except ValueError as exc:
             return str(exc), 400
         # Read the strategy selection; valid options: 'naive', 'advanced', 'macro', 'macro_only'
-        strategy_method = request.form.get('strategy_method', 'naive')
+        strategy_method = request.form.get("strategy_method", "naive")
 
         # Retrieve price data for the index with basic caching
         try:
@@ -148,11 +147,12 @@ def register_routes(app):
             prices_df = cached
 
         prices_df.reset_index(inplace=True)
-        prices_df['Date'] = pd.to_datetime(prices_df['Date'])
-    
+        prices_df["Date"] = pd.to_datetime(prices_df["Date"])
+
         # Flatten columns if they are MultiIndex
         def flatten_col(col):
             return col[1] if isinstance(col, tuple) and len(col) > 1 else col
+
         prices_df.columns = [flatten_col(col) for col in prices_df.columns]
         cols_list = prices_df.columns.tolist()
         if len(cols_list) > 5:
@@ -160,27 +160,29 @@ def register_routes(app):
         else:
             display_cols = cols_list
         app.logger.info("Flattened DataFrame columns (truncated): %s", display_cols)
-    
+
         # If columns appear as ['', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E', '^STOXX50E'], rename manually:
         cols = prices_df.columns.tolist()
-        if cols and cols[0] == '' and all(c == symbol for c in cols[1:]):
+        if cols and cols[0] == "" and all(c == symbol for c in cols[1:]):
             if len(cols) == 7:
-                prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+                prices_df.columns = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"]
             elif len(cols) == 6:
-                prices_df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close']
-    
+                prices_df.columns = ["Date", "Open", "High", "Low", "Close", "Adj Close"]
+
         # Determine a valid price column
-        if 'Close' in prices_df.columns:
-            price_col = 'Close'
-        elif 'Adj Close' in prices_df.columns:
-            price_col = 'Adj Close'
-        elif 'close' in prices_df.columns:
-            price_col = 'close'
-        elif 'adj close' in prices_df.columns:
-            price_col = 'adj close'
+        if "Close" in prices_df.columns:
+            price_col = "Close"
+        elif "Adj Close" in prices_df.columns:
+            price_col = "Adj Close"
+        elif "close" in prices_df.columns:
+            price_col = "close"
+        elif "adj close" in prices_df.columns:
+            price_col = "adj close"
         else:
-            raise ValueError("No valid price column found. Available columns: " + str(prices_df.columns.tolist()))
-    
+            raise ValueError(
+                "No valid price column found. Available columns: " + str(prices_df.columns.tolist())
+            )
+
         # Compute naive (Buy & Hold) cumulative returns:
         naive_returns = prices_df[price_col].pct_change().fillna(0)
         naive_series = (naive_returns + 1).cumprod()
@@ -195,33 +197,31 @@ def register_routes(app):
                 + end_date
             )
         naive_return = float(naive_series.iloc[-1] - 1)
-    
+
         # Determine ETF ticker for liquidity proxy (if available)
         etf_ticker = ETF_MAPPING.get(symbol, None)
-    
+
         # Choose strategy based on user selection:
-        if strategy_method == 'naive':
+        if strategy_method == "naive":
             # Use naive buy & hold (fully invested)
             strategy_return, strategy_series = naive_return, naive_series
             strategy_daily_returns = naive_returns
             strategy_alpha = 0.0
-        elif strategy_method == 'advanced':
+        elif strategy_method == "advanced":
             # Advanced market timing strategy using index data signals (plus ETF liquidity)
             strategy_return, _, strategy_series = simple_backtest(
                 prices_df, lambda df: dynamic_market_timing_strategy_advanced(df, etf_ticker)
             )
             strategy_return = float(strategy_return)
             strategy_daily_returns = strategy_series.pct_change().fillna(0)
-        elif strategy_method == 'macro':
+        elif strategy_method == "macro":
             # Advanced market timing strategy incorporating macro data along with index signals
             fred_api_key = os.getenv("FRED_API_KEY")
             if not fred_api_key:
                 return "FRED API key not set", 500
             default_series_id = "DGS3MO"  # FRED series (e.g., 3-Month Treasury Rate)
             try:
-                macro_df = get_fred_data(
-                    fred_api_key, default_series_id, start_date, end_date
-                )
+                macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
                 _save_cache(macro_df, "fred", default_series_id, start_date, end_date)
             except RuntimeError as exc:
                 app.logger.error("FRED data fetch failed: %s", exc)
@@ -233,21 +233,18 @@ def register_routes(app):
                     )
                 macro_df = cached
             strategy_return, _, strategy_series = simple_backtest(
-                prices_df,
-                lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
+                prices_df, lambda df: dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker)
             )
             strategy_return = float(strategy_return)
             strategy_daily_returns = strategy_series.pct_change().fillna(0)
-        elif strategy_method == 'macro_only':
+        elif strategy_method == "macro_only":
             # Strategy using only macro signals as a signal (allocations from -1 to 1)
             fred_api_key = os.getenv("FRED_API_KEY")
             if not fred_api_key:
                 return "FRED API key not set", 500
             default_series_id = "DGS3MO"
             try:
-                macro_df = get_fred_data(
-                    fred_api_key, default_series_id, start_date, end_date
-                )
+                macro_df = get_fred_data(fred_api_key, default_series_id, start_date, end_date)
                 _save_cache(macro_df, "fred", default_series_id, start_date, end_date)
             except RuntimeError as exc:
                 app.logger.error("FRED data fetch failed: %s", exc)
@@ -259,10 +256,10 @@ def register_routes(app):
                     )
                 macro_df = cached
             allocation = dynamic_macro_strategy(prices_df, macro_df, etf_ticker)
-            prices_df['returns'] = prices_df[price_col].pct_change().fillna(0)
-            strategy_series = (prices_df['returns'] * allocation + 1).cumprod()
+            prices_df["returns"] = prices_df[price_col].pct_change().fillna(0)
+            strategy_series = (prices_df["returns"] * allocation + 1).cumprod()
             strategy_return = float(strategy_series.iloc[-1] - 1)
-            strategy_daily_returns = prices_df['returns'] * allocation
+            strategy_daily_returns = prices_df["returns"] * allocation
         else:
             # Default to naive if unrecognized
             strategy_return, strategy_series = naive_return, naive_series
@@ -272,6 +269,13 @@ def register_routes(app):
         fred_api_key = os.getenv("FRED_API_KEY")
         risk_free_env = os.getenv("RISK_FREE_RATE")
         risk_free_rate = float(risk_free_env) if risk_free_env is not None else None
+
+        if not fred_api_key and risk_free_rate is None:
+            message = (
+                "Risk-free rate data is unavailable. Set the RISK_FREE_RATE "
+                "environment variable or provide a FRED_API_KEY."
+            )
+            return render_template("error.html", message=message), 500
 
         metrics = compute_metrics(
             prices_df,
@@ -323,15 +327,15 @@ def register_routes(app):
             start_date=pd.to_datetime(start_date),
             end_date=pd.to_datetime(end_date),
             returns=strategy_return,
-            alpha=strategy_alpha
+            alpha=strategy_alpha,
         )
         db.session.add(result)
         db.session.commit()
-    
+
         # Generate interactive Plotly chart with both naive and strategy series
-        plot_dates = prices_df['Date']
+        plot_dates = prices_df["Date"]
         plot_html = create_return_plot(plot_dates, naive_series, strategy_series)
-    
+
         # Set labels based on the selected strategy
         if strategy_method == "advanced":
             strategy_label = "Advanced Market Timing Strategy"
@@ -341,9 +345,9 @@ def register_routes(app):
             strategy_label = "Macro-Only Strategy"
         else:
             strategy_label = "Naive Buy & Hold Strategy"
-    
+
         return render_template(
-            'results.html',
+            "results.html",
             strategy_method=strategy_method,
             strategy_label=strategy_label,
             naive_return=naive_return,
@@ -364,11 +368,12 @@ def register_routes(app):
             strategy_vol_excess=strategy_vol_excess,
             strategy_drawdown=strategy_drawdown,
             naive_avg_excess=naive_avg_excess,
-            strategy_avg_excess=strategy_avg_excess
+            strategy_avg_excess=strategy_avg_excess,
         )
+
 
 app = create_app()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Rely on the FLASK_ENV environment variable for debug configuration
     app.run()
