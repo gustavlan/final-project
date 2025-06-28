@@ -16,4 +16,3 @@ def validate_date_range(start_date: str, end_date: str, max_days: int = 3650) ->
 
     if (end - start).days > max_days:
         raise ValueError(f"Date range cannot exceed {max_days} days")
-

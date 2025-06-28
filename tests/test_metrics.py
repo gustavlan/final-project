@@ -50,6 +50,7 @@ def test_compute_metrics_zero_variance():
 
     assert metrics["strategy_beta"] == 0
 
+
 def test_sortino_no_negative_returns():
     dates = pd.date_range(start="2021-01-01", periods=5, freq="D")
     returns = pd.Series([0.01, 0.02, 0.03, 0.01, 0.02])
@@ -79,7 +80,11 @@ def test_compute_metrics_handles_unsorted_data():
 
     dates = pd.date_range(start="2021-01-01", periods=5, freq="D")
     returns = pd.Series([0.0, 0.02, -0.01, 0.03, -0.02])
-    prices_df = pd.DataFrame({"Date": dates, "returns": returns}).sample(frac=1, random_state=1).reset_index(drop=True)
+    prices_df = (
+        pd.DataFrame({"Date": dates, "returns": returns})
+        .sample(frac=1, random_state=1)
+        .reset_index(drop=True)
+    )
     naive_returns = prices_df["returns"]
     strategy_daily_returns = naive_returns * 2
     naive_series = (naive_returns + 1).cumprod()
@@ -97,4 +102,3 @@ def test_compute_metrics_handles_unsorted_data():
     )
 
     assert np.isclose(metrics["strategy_beta"], 2.0)
-

@@ -5,6 +5,7 @@ from typing import Iterable
 import pandas as pd
 import plotly.graph_objects as go
 
+
 def create_return_plot(
     dates: Iterable[pd.Timestamp],
     naive_series: pd.Series,
@@ -27,18 +28,26 @@ def create_return_plot(
         HTML representation of the Plotly figure.
     """
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=dates, y=naive_series, mode='lines', name='Naive (Buy & Hold) Return',
-        line=dict(color='blue')
-    ))
-    fig.add_trace(go.Scatter(
-        x=dates, y=strategy_series, mode='lines', name='Market Timing Strategy Return',
-        line=dict(color='red')
-    ))
-    fig.update_layout(
-        title='Cumulative Returns Comparison',
-        xaxis_title='Date',
-        yaxis_title='Cumulative Return'
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=naive_series,
+            mode="lines",
+            name="Naive (Buy & Hold) Return",
+            line=dict(color="blue"),
+        )
     )
-    fig.update_xaxes(type='date')
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=strategy_series,
+            mode="lines",
+            name="Market Timing Strategy Return",
+            line=dict(color="red"),
+        )
+    )
+    fig.update_layout(
+        title="Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Return"
+    )
+    fig.update_xaxes(type="date")
     return fig.to_html(full_html=False)
