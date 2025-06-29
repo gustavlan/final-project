@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,6 +31,23 @@ jobs:
       - name: Mypy type check
         run: mypy .
 
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
       - name: Run tests with coverage
         run: |
           pytest --cov=./ --cov-report=xml
@@ -41,6 +59,16 @@ jobs:
           path: coverage.xml
 
       - name: Generate coverage badge
+        if: github.event_name == 'push'
         uses: tj-actions/coverage-badge@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit coverage badge
+        if: github.event_name == 'push'
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add coverage.svg
+          git commit -m 'chore: update coverage badge' || echo 'No changes to commit'
+          git push
