@@ -1,11 +1,12 @@
 from flask import Flask, render_template, request
 from extensions import db, csrf
-from config import DevelopmentConfig, TestingConfig, ProductionConfig
+from config import DevelopmentConfig, TestingConfig, ProductionConfig, Config
 import click
 import pandas as pd
 import os
 import logging
 from logging.handlers import RotatingFileHandler
+from typing import Optional
 
 from utils.validation import validate_date_range
 
@@ -13,28 +14,84 @@ CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 
 
 def _cache_path(prefix: str, symbol: str, start: str, end: str) -> str:
-    """Return a cache file path for the given parameters."""
+    """Return the file path used to cache data.
+
+    Parameters
+    ----------
+    prefix : str
+        Identifier for the type of data being cached (e.g. ``"yahoo"``).
+    symbol : str
+        Market symbol such as an index ticker.
+    start, end : str
+        Date range in ``YYYY-MM-DD`` format.
+
+    Returns
+    -------
+    str
+        Absolute path to the cache file on disk.
+    """
     filename = f"{prefix}_{symbol}_{start}_{end}.pkl"
     return os.path.join(CACHE_DIR, filename)
 
 
-def _load_cache(prefix: str, symbol: str, start: str, end: str):
-    """Load cached DataFrame if available."""
+def _load_cache(prefix: str, symbol: str, start: str, end: str) -> pd.DataFrame | None:
+    """Return cached data if present on disk.
+
+    Parameters
+    ----------
+    prefix : str
+        Source identifier matching the value used in :func:`_cache_path`.
+    symbol : str
+        Symbol that the cached data pertains to.
+    start, end : str
+        Date range of the cached data.
+
+    Returns
+    -------
+    pandas.DataFrame | None
+        The cached DataFrame if the file exists, otherwise ``None``.
+    """
     path = _cache_path(prefix, symbol, start, end)
     if os.path.exists(path):
         return pd.read_pickle(path)
     return None
 
 
-def _save_cache(df: pd.DataFrame, prefix: str, symbol: str, start: str, end: str) -> None:
-    """Save DataFrame to cache."""
+def _save_cache(
+    df: pd.DataFrame, prefix: str, symbol: str, start: str, end: str
+) -> None:
+    """Persist a DataFrame to disk for later reuse.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Data to be stored.
+    prefix : str
+        Identifier for the data source.
+    symbol : str
+        Symbol associated with the data.
+    start, end : str
+        Date range for the cached dataset.
+    """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = _cache_path(prefix, symbol, start, end)
     df.to_pickle(path)
 
 
-def create_app(config_class=None):
-    """Create and configure the Flask application."""
+def create_app(config_class: type[Config] | None = None) -> Flask:
+    """Instantiate and configure the Flask application.
+
+    Parameters
+    ----------
+    config_class : type[Config] | None, optional
+        Configuration class to use. If ``None`` the class is selected based on
+        the ``FLASK_ENV`` environment variable.
+
+    Returns
+    -------
+    flask.Flask
+        The configured Flask application instance.
+    """
 
     if config_class is None:
         env = os.getenv("FLASK_ENV", "development").lower()
@@ -80,15 +137,20 @@ def create_app(config_class=None):
     return app
 
 
-def register_cli(app):
+def register_cli(app: Flask) -> None:
+    """Register command line interfaces on the given Flask app."""
+
     @app.cli.command("init-db")
-    def init_db_command():
-        """Initialize the database."""
+    def init_db_command() -> None:
+        """Initialize the application's database."""
+
         db.create_all()
         click.echo("Initialized the database.")
 
 
-def register_routes(app):
+def register_routes(app: Flask) -> None:
+    """Attach the HTTP routes to ``app``."""
+
     # Define a mapping from index tickers to ETF tickers.
     ETF_MAPPING = {
         "^GSPC": "SPY",

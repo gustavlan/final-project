@@ -9,7 +9,20 @@ logger = logging.getLogger(__name__)
 
 
 def get_yahoo_data(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-    """Download historical price data from Yahoo Finance."""
+    """Fetch historical OHLC data from Yahoo Finance.
+
+    Parameters
+    ----------
+    symbol : str
+        The ticker symbol to download.
+    start_date, end_date : str
+        Date range in ``YYYY-MM-DD`` format.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the downloaded price data indexed by date.
+    """
     try:
         data = yf.download(symbol, start=start_date, end=end_date, group_by="column")
     except Exception as exc:
@@ -19,7 +32,22 @@ def get_yahoo_data(symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
 
 
 def get_fred_data(api_key: str, series_id: str, start_date: str, end_date: str) -> pd.DataFrame:
-    """Retrieve a FRED series as a DataFrame with ``date`` and ``value``."""
+    """Retrieve a FRED series as a DataFrame with ``date`` and ``value`` columns.
+
+    Parameters
+    ----------
+    api_key : str
+        FRED API key.
+    series_id : str
+        Identifier of the FRED series.
+    start_date, end_date : str
+        Date range in ``YYYY-MM-DD`` format.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Series observations indexed by date.
+    """
     fred = Fred(api_key=api_key)
     try:
         data = fred.get_series(series_id, observation_start=start_date, observation_end=end_date)
@@ -39,18 +67,20 @@ def get_fred_data(api_key: str, series_id: str, start_date: str, end_date: str) 
 def get_risk_free_rate(api_key: str, start_date: str, end_date: str) -> pd.DataFrame:
     """Return a daily risk-free rate series from FRED.
 
+    The function downloads the 3‑month Treasury bill rate and converts the
+    annualised percentage yield into a daily decimal rate.
+
     Parameters
     ----------
     api_key : str
         FRED API key.
     start_date, end_date : str
-        Date range to retrieve.
+        Date range in ``YYYY-MM-DD`` format.
 
     Returns
     -------
-    pd.DataFrame
-        DataFrame with ``Date`` and ``daily_rate`` columns representing the
-        3-month Treasury yield converted to a daily rate.
+    pandas.DataFrame
+        DataFrame with ``Date`` and ``daily_rate`` columns.
     """
     series_id = "DGS3MO"
     df = get_fred_data(api_key, series_id, start_date, end_date)
