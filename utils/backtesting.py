@@ -1,6 +1,7 @@
 """Utility functions for running simple and dynamic backtests."""
 
 from typing import Callable, Optional, Tuple, Union
+from dataclasses import dataclass
 from collections import OrderedDict
 from threading import Lock
 import os
@@ -13,6 +14,14 @@ from utils.data_retrieval import get_risk_free_rate
 _ETF_VOLUME_CACHE_MAX_SIZE = 10
 _etf_volume_cache: "OrderedDict[tuple[str, str, str], pd.DataFrame]" = OrderedDict()
 _cache_lock = Lock()
+
+
+@dataclass
+class ExecutionModel:
+    """Model representing execution costs for backtests."""
+
+    bid_ask_spread: float = 0.0
+    commission: float = 0.0
 
 
 def _enforce_cache_limit(cache_dir: Optional[str] = None) -> None:
@@ -119,6 +128,7 @@ def full_invested_strategy(df: pd.DataFrame) -> float:
 def simple_backtest(
     prices_df: pd.DataFrame,
     allocation_strategy: Callable[[pd.DataFrame], Union[float, pd.Series]],
+    execution_model: ExecutionModel | None = None,
 ) -> Tuple[float, float, pd.Series]:
     """Run a naive or user-defined backtest.
 
@@ -137,6 +147,9 @@ def simple_backtest(
         ``(cumulative_return, alpha, cumulative_series)`` where ``cumulative_series``
         contains the cumulative strategy returns over time.
     """
+    if execution_model is None:
+        execution_model = ExecutionModel()
+
     # Ensure a proper Date column exists and sort by date
     if "Date" not in prices_df.columns:
         prices_df.reset_index(inplace=True)
@@ -163,7 +176,17 @@ def simple_backtest(
 
     # Apply the allocation strategy to get a series of daily allocations
     allocation_series = allocation_strategy(prices_df)
-    prices_df["strategy_returns"] = prices_df["returns"] * allocation_series
+    if not isinstance(allocation_series, pd.Series):
+        allocation_series = pd.Series(allocation_series, index=prices_df.index)
+
+    # Calculate trade sizes and associated costs
+    trade_size = allocation_series.diff().abs().fillna(allocation_series.iloc[0])
+    trade_cost = (
+        trade_size * execution_model.bid_ask_spread
+        + (trade_size > 0).astype(float) * execution_model.commission
+    )
+
+    prices_df["strategy_returns"] = prices_df["returns"] * allocation_series - trade_cost
 
     cumulative_series = (prices_df["strategy_returns"] + 1).cumprod()
     if cumulative_series.empty:
