@@ -9,6 +9,7 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
     dynamic_macro_strategy,
+    ExecutionModel,
     _etf_volume_cache,
     _enforce_cache_limit,
     _ETF_VOLUME_CACHE_MAX_SIZE,
@@ -36,6 +37,30 @@ def test_simple_backtest():
 
     # Test to compare the values (allowing small differences)
     np.testing.assert_almost_equal(cumulative_return, expected_cum_return, decimal=2)
+
+
+def test_simple_backtest_with_execution_costs():
+    dates = pd.date_range(start="2021-01-01", periods=4, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [100, 101, 102, 103]})
+
+    def strategy(_df: pd.DataFrame) -> pd.Series:
+        return pd.Series([0, 1, 1, 0], index=_df.index)
+
+    model = ExecutionModel(bid_ask_spread=0.01, commission=0.001)
+
+    cumulative_return, alpha, series = simple_backtest(df.copy(), strategy, execution_model=model)
+
+    df["returns"] = df["Close"].pct_change().fillna(0)
+    alloc = strategy(df)
+    trade_size = alloc.diff().abs().fillna(alloc.iloc[0])
+    cost = trade_size * model.bid_ask_spread + (trade_size > 0) * model.commission
+    expected_series = (df["returns"] * alloc - cost + 1).cumprod()
+
+    pd.testing.assert_series_equal(
+        series.reset_index(drop=True),
+        expected_series.reset_index(drop=True),
+        check_names=False,
+    )
 
 
 def test_dynamic_market_timing_strategy_macro_basic():
