@@ -63,6 +63,35 @@ def test_simple_backtest_with_execution_costs():
     )
 
 
+def test_simple_backtest_execution_model():
+    """Validate simple_backtest when execution costs are applied."""
+    dates = pd.date_range(start="2021-01-01", periods=4, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [100, 101, 102, 103]})
+
+    def strategy(_df: pd.DataFrame) -> pd.Series:
+        # Toggle exposure between 0 and 1
+        return pd.Series([0, 1, 0, 1], index=_df.index)
+
+    model = ExecutionModel(bid_ask_spread=0.01, commission=0.0)
+
+    cumulative_return, alpha, series = simple_backtest(
+        df.copy(), strategy, execution_model=model
+    )
+
+    df["returns"] = df["Close"].pct_change().fillna(0)
+    alloc = strategy(df)
+    trade_size = alloc.diff().abs().fillna(alloc.iloc[0])
+    cost = trade_size * model.bid_ask_spread + (trade_size > 0) * model.commission
+    expected_series = (df["returns"] * alloc - cost + 1).cumprod()
+
+    pd.testing.assert_series_equal(
+        series.reset_index(drop=True),
+        expected_series.reset_index(drop=True),
+        check_names=False,
+    )
+    assert cumulative_return == pytest.approx(expected_series.iloc[-1] - 1)
+
+
 def test_dynamic_market_timing_strategy_macro_basic():
     """Ensure the macro strategy returns a valid allocation series."""
     dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
