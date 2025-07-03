@@ -6,7 +6,6 @@ import pandas as pd
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from typing import Optional
 
 from utils.validation import validate_date_range
 
@@ -57,9 +56,7 @@ def _load_cache(prefix: str, symbol: str, start: str, end: str) -> pd.DataFrame 
     return None
 
 
-def _save_cache(
-    df: pd.DataFrame, prefix: str, symbol: str, start: str, end: str
-) -> None:
+def _save_cache(df: pd.DataFrame, prefix: str, symbol: str, start: str, end: str) -> None:
     """Persist a DataFrame to disk for later reuse.
 
     Parameters

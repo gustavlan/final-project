@@ -74,9 +74,7 @@ def test_simple_backtest_execution_model():
 
     model = ExecutionModel(bid_ask_spread=0.01, commission=0.0)
 
-    cumulative_return, alpha, series = simple_backtest(
-        df.copy(), strategy, execution_model=model
-    )
+    cumulative_return, alpha, series = simple_backtest(df.copy(), strategy, execution_model=model)
 
     df["returns"] = df["Close"].pct_change().fillna(0)
     alloc = strategy(df)
