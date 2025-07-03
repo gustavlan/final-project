@@ -60,7 +60,7 @@ jobs:
 
       - name: Generate coverage badge
         if: github.event_name == 'push'
-        uses: tj-actions/coverage-badge@v3
+        uses: tj-actions/coverage-badge-py@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
