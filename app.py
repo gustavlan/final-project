@@ -156,8 +156,8 @@ def register_routes(app: Flask) -> None:
         "^FTSE": "ISF",
         "^N225": "EWJ",
         "^HSI": "2800.HK",
-        "^GDAXI": "DAXY",
-        "^FCHI": "EWU",
+        "^GDAXI": "EWG",
+        "^FCHI": "EWQ",
         "^STOXX50E": "FEZ",
         "^BSESN": "INDA",
     }
