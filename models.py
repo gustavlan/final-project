@@ -1,7 +1,7 @@
-from extensions import db
+from extensions import Model, db
 
 
-class Index(db.Model):
+class Index(Model):
     """Market indices such as S&P 500 or Dow Jones."""
 
     __tablename__ = "indices"
@@ -11,7 +11,7 @@ class Index(db.Model):
     symbol = db.Column(db.String(10), nullable=False, unique=True)
 
 
-class HistoricalPrice(db.Model):
+class HistoricalPrice(Model):
     id = db.Column(db.Integer, primary_key=True)
     index_id = db.Column(db.Integer, db.ForeignKey("indices.id"), nullable=False)
     date = db.Column(db.Date, nullable=False)
@@ -23,21 +23,21 @@ class HistoricalPrice(db.Model):
     index = db.relationship("Index", backref=db.backref("prices", lazy=True))
 
 
-class MacroData(db.Model):
+class MacroData(Model):
     id = db.Column(db.Integer, primary_key=True)
     indicator = db.Column(db.String(50), nullable=False)
     date = db.Column(db.Date, nullable=False)
     value = db.Column(db.Float)
 
 
-class Strategy(db.Model):
+class Strategy(Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text)
     parameters = db.Column(db.Text)  # Store as JSON string
 
 
-class BacktestResult(db.Model):
+class BacktestResult(Model):
     id = db.Column(db.Integer, primary_key=True)
     strategy_id = db.Column(db.Integer, db.ForeignKey("strategy.id"), nullable=False)
     index_id = db.Column(db.Integer, db.ForeignKey("indices.id"), nullable=False)
