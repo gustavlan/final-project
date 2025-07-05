@@ -317,7 +317,7 @@ def register_routes(app: Flask) -> None:
                         502,
                     )
                 macro_df = cached
-            allocation = dynamic_macro_strategy(prices_df, macro_df, etf_ticker)
+            allocation = dynamic_macro_strategy(prices_df, macro_df)
             prices_df["returns"] = prices_df[price_col].pct_change().fillna(0)
             strategy_series = (prices_df["returns"] * allocation + 1).cumprod()
             strategy_return = float(strategy_series.iloc[-1] - 1)

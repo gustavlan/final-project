@@ -487,11 +487,7 @@ def dynamic_market_timing_strategy_macro(df, macro_df, etf_ticker=None):
     return allocation
 
 
-def dynamic_macro_strategy(
-    df: pd.DataFrame,
-    macro_df: pd.DataFrame,
-    etf_ticker: Optional[str] = None,
-) -> pd.Series:
+def dynamic_macro_strategy(df: pd.DataFrame, macro_df: pd.DataFrame) -> pd.Series:
     """Allocate purely based on macroeconomic signals.
 
     Parameters
@@ -500,8 +496,6 @@ def dynamic_macro_strategy(
         Price data with a ``Date`` column.
     macro_df : pd.DataFrame
         Macroeconomic values with ``date`` and ``value`` columns.
-    etf_ticker : str, optional
-        Kept for API compatibility; ignored in this implementation.
 
     Returns
     -------
