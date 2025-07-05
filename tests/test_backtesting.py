@@ -37,6 +37,24 @@ def test_simple_backtest():
 
     # Test to compare the values (allowing small differences)
     np.testing.assert_almost_equal(cumulative_return, expected_cum_return, decimal=2)
+    assert alpha == pytest.approx(0, abs=1e-8)
+
+
+def test_simple_backtest_leveraged_alpha():
+    """Alpha should be ~0 for a leveraged strategy with no costs."""
+    data = {
+        "Date": pd.date_range(start="2021-01-01", periods=5, freq="D"),
+        "Close": [100, 102, 101, 103, 105],
+    }
+    df = pd.DataFrame(data)
+
+    cumulative_return, alpha, _ = simple_backtest(df.copy(), lambda _df: 2.0)
+
+    expected_returns = df["Close"].pct_change().fillna(0)
+    expected_cum_return = (expected_returns * 2 + 1).cumprod().iloc[-1] - 1
+
+    np.testing.assert_allclose(cumulative_return, expected_cum_return)
+    assert alpha == pytest.approx(0, abs=1e-8)
 
 
 def test_simple_backtest_with_execution_costs():
