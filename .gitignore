@@ -24,6 +24,10 @@ final_project.db
 instance/final_project.db
 logs/
 
+# Coverage data
+.coverage
+coverage.xml
+
 # Cache directory used during tests
 cache/
 
