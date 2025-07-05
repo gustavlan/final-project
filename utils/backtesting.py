@@ -193,7 +193,21 @@ def simple_backtest(
         raise ValueError("Cumulative series is empty. Check your data and date range.")
 
     cumulative_return = cumulative_series.iloc[-1] - 1
-    alpha = cumulative_return - prices_df["returns"].mean()
+
+    aligned = pd.concat(
+        [
+            prices_df["strategy_returns"].rename("strategy"),
+            prices_df["returns"].rename("benchmark"),
+        ],
+        axis=1,
+    ).dropna()
+
+    bench_var = aligned["benchmark"].var()
+    beta = aligned["strategy"].cov(aligned["benchmark"]) / bench_var if bench_var > 1e-8 else 0
+
+    strategy_mean = aligned["strategy"].mean()
+    bench_mean = aligned["benchmark"].mean()
+    alpha = strategy_mean - beta * bench_mean
 
     return cumulative_return, alpha, cumulative_series
 
