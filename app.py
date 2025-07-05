@@ -7,7 +7,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 
-from utils.validation import validate_date_range
+from utils.validation import validate_date_range, sanitize_symbol
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 
@@ -29,7 +29,8 @@ def _cache_path(prefix: str, symbol: str, start: str, end: str) -> str:
     str
         Absolute path to the cache file on disk.
     """
-    filename = f"{prefix}_{symbol}_{start}_{end}.pkl"
+    safe_symbol = sanitize_symbol(symbol)
+    filename = f"{prefix}_{safe_symbol}_{start}_{end}.pkl"
     return os.path.join(CACHE_DIR, filename)
 
 

@@ -1,6 +1,10 @@
 """Validation helpers for form input."""
 
 from datetime import datetime
+import os
+import re
+
+_SYMBOL_SAFE_CHARS = re.compile(r"[^A-Za-z0-9.^_-]")
 
 
 def validate_date_range(start_date: str, end_date: str, max_days: int = 3650) -> None:
@@ -29,3 +33,18 @@ def validate_date_range(start_date: str, end_date: str, max_days: int = 3650) ->
 
     if (end - start).days > max_days:
         raise ValueError(f"Date range cannot exceed {max_days} days")
+
+
+def sanitize_symbol(symbol: str) -> str:
+    """Return a filesystem-safe representation of ``symbol``.
+
+    Any path separators are replaced and unsafe characters are converted to
+    underscores to prevent path traversal or file overwrites.
+    """
+
+    sanitized = symbol.replace(os.path.sep, "_")
+    if os.path.altsep:
+        sanitized = sanitized.replace(os.path.altsep, "_")
+    sanitized = sanitized.replace("..", "")
+    sanitized = _SYMBOL_SAFE_CHARS.sub("_", sanitized)
+    return sanitized
