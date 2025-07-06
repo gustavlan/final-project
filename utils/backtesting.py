@@ -543,3 +543,104 @@ def dynamic_macro_strategy(df: pd.DataFrame, macro_df: pd.DataFrame) -> pd.Serie
     allocation.iloc[:lookback] = 1.0
 
     return allocation
+
+
+def walk_forward_backtest(
+    prices_df: pd.DataFrame,
+    allocation_strategy: Callable[[pd.DataFrame], Union[float, pd.Series]],
+    train_size: int,
+    test_size: int,
+    fred_api_key: str | None = None,
+    risk_free_rate: float | None = None,
+    execution_model: ExecutionModel | None = None,
+) -> pd.DataFrame:
+    """Run a walk‑forward backtest over rolling windows.
+
+    Each window uses ``train_size`` observations for calculating strategy weights
+    followed by ``test_size`` out‑of‑sample days on which metrics are computed.
+
+    Parameters
+    ----------
+    prices_df : pandas.DataFrame
+        DataFrame containing a ``Date`` column and price data.
+    allocation_strategy : Callable[[pd.DataFrame], float | pd.Series]
+        Strategy function compatible with :func:`simple_backtest`.
+    train_size : int
+        Number of observations used as the training window.
+    test_size : int
+        Length of the out‑of‑sample period for each iteration.
+    fred_api_key : str, optional
+        API key used to fetch the risk‑free rate. Ignored if
+        ``risk_free_rate`` is supplied.
+    risk_free_rate : float, optional
+        Constant daily risk‑free rate. One of ``fred_api_key`` or
+        ``risk_free_rate`` must be provided.
+    execution_model : ExecutionModel, optional
+        Transaction cost model passed to :func:`simple_backtest`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame where each row contains performance metrics for one
+        out‑of‑sample window. Additional columns ``start_date``, ``end_date``,
+        ``naive_return`` and ``strategy_return`` identify the period and
+        cumulative returns.
+    """
+
+    prices_df = prices_df.copy()
+    prices_df["Date"] = pd.to_datetime(prices_df["Date"])
+    prices_df.sort_values("Date", inplace=True)
+
+    if "Close" in prices_df.columns:
+        price_col = "Close"
+    elif "Adj Close" in prices_df.columns:
+        price_col = "Adj Close"
+    elif "close" in prices_df.columns:
+        price_col = "close"
+    elif "adj close" in prices_df.columns:
+        price_col = "adj close"
+    else:
+        raise ValueError("No valid price column found in the price data.")
+
+    n = len(prices_df)
+    metrics_list: list[dict] = []
+
+    for start in range(train_size, n - test_size + 1, test_size):
+        window_df = prices_df.iloc[start - train_size : start + test_size].copy()
+        strat_ret, _, strat_series = simple_backtest(
+            window_df.copy(), allocation_strategy, execution_model
+        )
+
+        naive_returns_full = window_df[price_col].pct_change().fillna(0)
+        naive_series_full = (naive_returns_full + 1).cumprod()
+
+        test_slice = window_df.iloc[train_size:].copy()
+        test_slice["returns"] = test_slice[price_col].pct_change().fillna(0)
+
+        strategy_series = strat_series.iloc[train_size:]
+        naive_series = naive_series_full.iloc[train_size:]
+        strategy_daily_returns = strategy_series.pct_change().fillna(0)
+        naive_returns = naive_series.pct_change().fillna(0)
+
+        metrics = compute_metrics(
+            test_slice,
+            naive_returns,
+            strategy_daily_returns,
+            naive_series,
+            strategy_series,
+            str(test_slice["Date"].iloc[0].date()),
+            str(test_slice["Date"].iloc[-1].date()),
+            fred_api_key,
+            risk_free_rate=risk_free_rate,
+        )
+        metrics.update(
+            {
+                "start_date": str(test_slice["Date"].iloc[0].date()),
+                "end_date": str(test_slice["Date"].iloc[-1].date()),
+                "naive_return": float(naive_series.iloc[-1] - 1),
+                "strategy_return": float(strategy_series.iloc[-1] - 1),
+            }
+        )
+        metrics_list.append(metrics)
+
+    return pd.DataFrame(metrics_list)

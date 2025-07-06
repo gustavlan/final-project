@@ -9,6 +9,7 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
     dynamic_macro_strategy,
+    walk_forward_backtest,
     ExecutionModel,
     _etf_volume_cache,
     _enforce_cache_limit,
@@ -231,3 +232,30 @@ def test_zero_volatility_allocation():
     assert np.all(np.isfinite(alloc))
     # After the lookback period the allocation should equal the momentum signal
     assert alloc.iloc[20] == pytest.approx(0.5, abs=1e-6)
+
+
+def test_walk_forward_backtest_basic():
+    """Walk-forward metrics should align with repeated simple_backtest runs."""
+
+    dates = pd.date_range(start="2021-01-01", periods=30, freq="D")
+    prices = pd.DataFrame({"Date": dates, "Close": np.linspace(100, 129, 30)})
+
+    train_size = 20
+    test_size = 5
+
+    res_df = walk_forward_backtest(
+        prices,
+        full_invested_strategy,
+        train_size=train_size,
+        test_size=test_size,
+        risk_free_rate=0,
+    )
+
+    expected_returns = []
+    for start in range(train_size, len(prices) - test_size + 1, test_size):
+        window = prices.iloc[start - train_size : start + test_size]
+        _, _, series = simple_backtest(window.copy(), full_invested_strategy)
+        expected_returns.append(float(series.iloc[-1] - 1))
+
+    assert res_df.shape[0] == len(expected_returns)
+    np.testing.assert_allclose(res_df["strategy_return"].values, expected_returns)
