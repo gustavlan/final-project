@@ -253,6 +253,20 @@ In addition to return calculations, the backtester computes several risk-adjuste
    - Click **Run Backtest**.
    - View the output, which includes cumulative returns and risk-adjusted metrics (such as Jensen's Alpha and the Treynor Ratio), along with an interactive Plotly chart comparing the strategies.
 
+### Walk-Forward Example
+
+```python
+results = walk_forward_backtest(
+    prices_df,
+    dynamic_market_timing_strategy_advanced,
+    train_size=252,
+    test_size=63,
+)
+print(results)
+```
+
+Each row shows metrics for one rolling out-of-sample window and the overall performance can be assessed by averaging them.
+
 ## Running Tests
 
 The project uses pytest for unit and integration tests. To run the tests:
