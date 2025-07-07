@@ -408,7 +408,9 @@ def compute_metrics(
     beta = aligned["strategy"].cov(aligned["naive"]) / naive_var if naive_var > 1e-8 else 0
     jensens_alpha = strategy_avg_excess - beta * naive_avg_excess
     strategy_treynor = strategy_avg_excess / (beta if beta != 0 else 1)
-    naive_beta = 1.0 if naive_var > 1e-8 else 0
+    naive_beta = (
+        aligned["naive"].cov(aligned["naive"]) / naive_var if naive_var > 1e-8 else 0
+    )
     naive_treynor = naive_avg_excess / (naive_beta if naive_beta != 0 else 1)
 
     return {
