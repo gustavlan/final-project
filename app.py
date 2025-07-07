@@ -12,6 +12,20 @@ from utils.validation import validate_date_range
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 
 
+def _sanitize_symbol(symbol: str) -> str:
+    """Return ``symbol`` if it contains no path separators.
+
+    ``os.path.basename`` is used to strip any directory components. If the
+    sanitized result differs from the original symbol a ``ValueError`` is
+    raised.
+    """
+
+    sanitized = os.path.basename(symbol)
+    if sanitized != symbol or sanitized in {"", ".", ".."}:
+        raise ValueError(f"Invalid symbol: {symbol}")
+    return sanitized
+
+
 def _cache_path(prefix: str, symbol: str, start: str, end: str) -> str:
     """Return the file path used to cache data.
 
@@ -29,7 +43,8 @@ def _cache_path(prefix: str, symbol: str, start: str, end: str) -> str:
     str
         Absolute path to the cache file on disk.
     """
-    filename = f"{prefix}_{symbol}_{start}_{end}.pkl"
+    symbol_safe = _sanitize_symbol(symbol)
+    filename = f"{prefix}_{symbol_safe}_{start}_{end}.pkl"
     return os.path.join(CACHE_DIR, filename)
 
 
