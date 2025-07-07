@@ -22,6 +22,7 @@ class ExecutionModel:
 
     bid_ask_spread: float = 0.0
     commission: float = 0.0
+    slippage: float = 0.0
 
 
 def _enforce_cache_limit(cache_dir: Optional[str] = None) -> None:
@@ -183,6 +184,7 @@ def simple_backtest(
     trade_size = allocation_series.diff().abs().fillna(allocation_series.iloc[0])
     trade_cost = (
         trade_size * execution_model.bid_ask_spread
+        + trade_size * execution_model.slippage
         + (trade_size > 0).astype(float) * execution_model.commission
     )
 
