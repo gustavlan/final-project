@@ -65,14 +65,18 @@ def test_simple_backtest_with_execution_costs():
     def strategy(_df: pd.DataFrame) -> pd.Series:
         return pd.Series([0, 1, 1, 0], index=_df.index)
 
-    model = ExecutionModel(bid_ask_spread=0.01, commission=0.001)
+    model = ExecutionModel(bid_ask_spread=0.01, commission=0.001, slippage=0.005)
 
     cumulative_return, alpha, series = simple_backtest(df.copy(), strategy, execution_model=model)
 
     df["returns"] = df["Close"].pct_change().fillna(0)
     alloc = strategy(df)
     trade_size = alloc.diff().abs().fillna(alloc.iloc[0])
-    cost = trade_size * model.bid_ask_spread + (trade_size > 0) * model.commission
+    cost = (
+        trade_size * model.bid_ask_spread
+        + trade_size * model.slippage
+        + (trade_size > 0) * model.commission
+    )
     expected_series = (df["returns"] * alloc - cost + 1).cumprod()
 
     pd.testing.assert_series_equal(
@@ -91,14 +95,18 @@ def test_simple_backtest_execution_model():
         # Toggle exposure between 0 and 1
         return pd.Series([0, 1, 0, 1], index=_df.index)
 
-    model = ExecutionModel(bid_ask_spread=0.01, commission=0.0)
+    model = ExecutionModel(bid_ask_spread=0.01, commission=0.0, slippage=0.0)
 
     cumulative_return, alpha, series = simple_backtest(df.copy(), strategy, execution_model=model)
 
     df["returns"] = df["Close"].pct_change().fillna(0)
     alloc = strategy(df)
     trade_size = alloc.diff().abs().fillna(alloc.iloc[0])
-    cost = trade_size * model.bid_ask_spread + (trade_size > 0) * model.commission
+    cost = (
+        trade_size * model.bid_ask_spread
+        + trade_size * model.slippage
+        + (trade_size > 0) * model.commission
+    )
     expected_series = (df["returns"] * alloc - cost + 1).cumprod()
 
     pd.testing.assert_series_equal(
