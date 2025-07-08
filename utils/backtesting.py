@@ -545,6 +545,54 @@ def dynamic_macro_strategy(df: pd.DataFrame, macro_df: pd.DataFrame) -> pd.Serie
     return allocation
 
 
+def inverse_volatility_strategy(
+    df: pd.DataFrame,
+    lookback: int = 20,
+    target_vol: float = 0.02,
+) -> pd.Series:
+    """Scale allocation using the inverse of realized volatility.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Price data containing a ``Date`` column and a price column.
+    lookback : int, optional
+        Window length for the rolling volatility estimate.
+    target_vol : float, optional
+        Target daily volatility used to determine the scaling factor.
+
+    Returns
+    -------
+    pandas.Series
+        Allocation weights indexed like ``df``.
+    """
+
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
+
+    if "returns" not in df.columns:
+        if "Close" in df.columns:
+            price_col = "Close"
+        elif "Adj Close" in df.columns:
+            price_col = "Adj Close"
+        elif "close" in df.columns:
+            price_col = "close"
+        elif "adj close" in df.columns:
+            price_col = "adj close"
+        else:
+            raise ValueError("No valid price column found in the price data.")
+        df["returns"] = df[price_col].pct_change().fillna(0)
+
+    vol = df["returns"].rolling(lookback).std()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        allocation = target_vol / vol
+    allocation = allocation.clip(upper=1).fillna(1.0)
+    allocation.iloc[:lookback] = 1.0
+
+    return allocation
+
+
 def walk_forward_backtest(
     prices_df: pd.DataFrame,
     allocation_strategy: Callable[[pd.DataFrame], Union[float, pd.Series]],

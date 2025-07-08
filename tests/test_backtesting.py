@@ -9,6 +9,7 @@ from utils.backtesting import (
     dynamic_market_timing_strategy_macro,
     dynamic_market_timing_strategy_advanced,
     dynamic_macro_strategy,
+    inverse_volatility_strategy,
     walk_forward_backtest,
     ExecutionModel,
     _etf_volume_cache,
@@ -232,6 +233,26 @@ def test_zero_volatility_allocation():
     assert np.all(np.isfinite(alloc))
     # After the lookback period the allocation should equal the momentum signal
     assert alloc.iloc[20] == pytest.approx(0.5, abs=1e-6)
+
+
+def test_inverse_volatility_strategy_basic():
+    """Allocation should scale with inverse volatility."""
+    dates = pd.date_range(start="2021-01-01", periods=40, freq="D")
+    prices = 100 + np.sin(np.linspace(0, 6, 40)) * 5
+    df = pd.DataFrame({"Date": dates, "Close": prices})
+    df["returns"] = df["Close"].pct_change().fillna(0)
+
+    alloc = inverse_volatility_strategy(df)
+
+    vol = df["returns"].rolling(20).std()
+    expected = (0.02 / vol).clip(upper=1)
+    expected.iloc[:20] = 1.0
+
+    pd.testing.assert_series_equal(
+        alloc.reset_index(drop=True),
+        expected.fillna(1.0).reset_index(drop=True),
+        check_names=False,
+    )
 
 
 def test_walk_forward_backtest_basic():

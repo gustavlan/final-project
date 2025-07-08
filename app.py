@@ -170,6 +170,7 @@ def register_routes(app: Flask) -> None:
         dynamic_market_timing_strategy_advanced,
         dynamic_market_timing_strategy_macro,
         dynamic_macro_strategy,
+        inverse_volatility_strategy,
         compute_metrics,
     )
     from utils.visualizations import create_return_plot
@@ -188,7 +189,8 @@ def register_routes(app: Flask) -> None:
             validate_date_range(start_date, end_date)
         except ValueError as exc:
             return str(exc), 400
-        # Read the strategy selection; valid options: 'naive', 'advanced', 'macro', 'macro_only'
+        # Read the strategy selection; valid options: 'naive', 'advanced', 'macro',
+        # 'macro_only', 'inverse_vol'
         strategy_method = request.form.get("strategy_method", "naive")
 
         # Retrieve price data for the index with basic caching
@@ -322,6 +324,12 @@ def register_routes(app: Flask) -> None:
             strategy_series = (prices_df["returns"] * allocation + 1).cumprod()
             strategy_return = float(strategy_series.iloc[-1] - 1)
             strategy_daily_returns = prices_df["returns"] * allocation
+        elif strategy_method == "inverse_vol":
+            strategy_return, _, strategy_series = simple_backtest(
+                prices_df, inverse_volatility_strategy
+            )
+            strategy_return = float(strategy_return)
+            strategy_daily_returns = strategy_series.pct_change().fillna(0)
         else:
             # Default to naive if unrecognized
             strategy_return, strategy_series = naive_return, naive_series
@@ -405,6 +413,8 @@ def register_routes(app: Flask) -> None:
             strategy_label = "Macro Market Timing Strategy"
         elif strategy_method == "macro_only":
             strategy_label = "Macro-Only Strategy"
+        elif strategy_method == "inverse_vol":
+            strategy_label = "Inverse Volatility Scaling"
         else:
             strategy_label = "Naive Buy & Hold Strategy"
 
